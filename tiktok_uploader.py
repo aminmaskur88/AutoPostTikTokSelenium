@@ -20,9 +20,17 @@ PROFILE_PATH = os.path.join(os.getcwd(), "tiktok_profile")
 def human_delay(min_sec=2, max_sec=5):
     time.sleep(random.uniform(min_sec, max_sec))
 
-def setup_driver():
+def setup_driver(headless=False):
     chrome_options = Options()
     chrome_options.binary_location = CHROME_PATH
+    
+    # Konfigurasi Headless (Hemat RAM & Tanpa VNC)
+    if headless:
+        print("[*] Berjalan dalam mode HEADLESS (Hemat RAM)...")
+        chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--mute-audio") # Hemat CPU (tanpa suara)
+    
     chrome_options.add_argument(f"--user-data-dir={PROFILE_PATH}")
     chrome_options.add_argument("--profile-directory=Default")
     chrome_options.add_argument("--no-sandbox")
@@ -39,13 +47,16 @@ def setup_driver():
 
 def simulate_warmup(driver):
     print("Memulai simulasi pemanasan (scrolling).")
-    driver.get("https://www.tiktok.com/foryou")
-    human_delay(5, 8)
-    for _ in range(random.randint(2, 3)):
-        driver.execute_script(f"window.scrollBy(0, {random.randint(500, 1000)});")
-        time.sleep(random.uniform(3, 7))
+    try:
+        driver.get("https://www.tiktok.com/foryou")
+        human_delay(5, 8)
+        for _ in range(random.randint(2, 3)):
+            driver.execute_script(f"window.scrollBy(0, {random.randint(500, 1000)});")
+            time.sleep(random.uniform(3, 7))
+    except:
+        print("[!] Gagal warmup, lanjut ke upload...")
 
-def upload_post(folder_path):
+def upload_post(folder_path, use_headless=False):
     status_file = os.path.join(folder_path, "uploaded.status")
     if os.path.exists(status_file):
         print(f"Skipping: Postingan di {folder_path} sudah pernah diupload.")
@@ -80,7 +91,7 @@ def upload_post(folder_path):
     if len(caption) > 2200:
         caption = caption[:2195] + "..."
 
-    driver = setup_driver()
+    driver = setup_driver(headless=use_headless)
     wait = WebDriverWait(driver, 60)
 
     try:
@@ -294,6 +305,10 @@ if __name__ == "__main__":
     print("TIKTOK AUTO UPLOADER")
     print("="*50)
     
+    # Menanyakan opsi Headless
+    headless_input = input("Jalankan tanpa tampilan (Hemat RAM & Tanpa VNC)? (y/n): ").strip().lower()
+    is_headless = True if headless_input == 'y' else False
+
     # Menanyakan folder media ke user
     user_input = input("Masukkan nama folder media (tekan Enter untuk default 'Post'): ").strip()
     base_post_dir = user_input if user_input else "Post"
@@ -312,7 +327,7 @@ if __name__ == "__main__":
             for folder in post_folders:
                 folder_path = os.path.join(base_post_dir, folder)
                 print(f"\nPROSES: {folder}")
-                upload_post(folder_path)
+                upload_post(folder_path, use_headless=is_headless)
                 
                 # Jeda antar postingan
                 if folder != post_folders[-1]:
