@@ -1,0 +1,6 @@
+tiktok_profile/
+Post/
+chromedriver.log
+__pycache__/
+*.pyc
+.DS_Store
