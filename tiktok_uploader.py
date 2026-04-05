@@ -12,9 +12,15 @@ from selenium.webdriver.support import expected_conditions as EC
 
 from selenium.webdriver.common.action_chains import ActionChains
 
-# Path biner Termux
-CHROME_PATH = "/data/data/com.termux/files/usr/bin/chromium-browser"
-CHROMEDRIVER_PATH = "/data/data/com.termux/files/usr/bin/chromedriver"
+# Deteksi Environment (Termux Android atau PC Desktop)
+IS_TERMUX = "com.termux" in os.environ.get("PREFIX", "")
+if IS_TERMUX:
+    CHROME_PATH = "/data/data/com.termux/files/usr/bin/chromium-browser"
+    CHROMEDRIVER_PATH = "/data/data/com.termux/files/usr/bin/chromedriver"
+else:
+    CHROME_PATH = None
+    CHROMEDRIVER_PATH = None
+
 PROFILE_PATH = os.path.join(os.getcwd(), "tiktok_profile")
 
 def human_delay(min_sec=2, max_sec=5):
@@ -55,7 +61,8 @@ def check_for_captcha(driver):
 
 def setup_driver(headless=False):
     chrome_options = Options()
-    chrome_options.binary_location = CHROME_PATH
+    if CHROME_PATH:
+        chrome_options.binary_location = CHROME_PATH
     
     # Konfigurasi Headless (Hemat RAM & Tanpa VNC)
     if headless:
@@ -73,8 +80,13 @@ def setup_driver(headless=False):
     chrome_options.add_experimental_option("useAutomationExtension", False)
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36")
     
-    service = Service(CHROMEDRIVER_PATH)
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    if IS_TERMUX and CHROMEDRIVER_PATH:
+        service = Service(CHROMEDRIVER_PATH)
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+    else:
+        # Biarkan Selenium di PC mengunduh/mencari driver otomatis
+        driver = webdriver.Chrome(options=chrome_options)
+
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     return driver
 

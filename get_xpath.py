@@ -9,14 +9,22 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-# Path biner Termux
-CHROME_PATH = "/data/data/com.termux/files/usr/bin/chromium-browser"
-CHROMEDRIVER_PATH = "/data/data/com.termux/files/usr/bin/chromedriver"
+# Deteksi Environment (Termux Android atau PC Desktop)
+IS_TERMUX = "com.termux" in os.environ.get("PREFIX", "")
+if IS_TERMUX:
+    CHROME_PATH = "/data/data/com.termux/files/usr/bin/chromium-browser"
+    CHROMEDRIVER_PATH = "/data/data/com.termux/files/usr/bin/chromedriver"
+else:
+    CHROME_PATH = None
+    CHROMEDRIVER_PATH = None
+
 PROFILE_PATH = os.path.join(os.getcwd(), "tiktok_profile")
 
 def setup_driver():
     chrome_options = Options()
-    chrome_options.binary_location = CHROME_PATH
+    if CHROME_PATH:
+        chrome_options.binary_location = CHROME_PATH
+    
     chrome_options.add_argument(f"--user-data-dir={PROFILE_PATH}")
     chrome_options.add_argument("--profile-directory=Default")
     chrome_options.add_argument("--no-sandbox")
@@ -29,8 +37,13 @@ def setup_driver():
     # Aktifkan log browser
     chrome_options.set_capability("goog:loggingPrefs", {"browser": "ALL"})
     
-    service = Service(CHROMEDRIVER_PATH)
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    if IS_TERMUX and CHROMEDRIVER_PATH:
+        service = Service(CHROMEDRIVER_PATH)
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+    else:
+        # Biarkan Selenium di PC mengunduh/mencari driver otomatis
+        driver = webdriver.Chrome(options=chrome_options)
+
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     return driver
 

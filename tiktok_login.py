@@ -4,16 +4,22 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 
-# Path biner yang ditemukan di Termux
-CHROME_PATH = "/data/data/com.termux/files/usr/bin/chromium-browser"
-CHROMEDRIVER_PATH = "/data/data/com.termux/files/usr/bin/chromedriver"
+# Deteksi Environment (Termux Android atau PC Desktop)
+IS_TERMUX = "com.termux" in os.environ.get("PREFIX", "")
+if IS_TERMUX:
+    CHROME_PATH = "/data/data/com.termux/files/usr/bin/chromium-browser"
+    CHROMEDRIVER_PATH = "/data/data/com.termux/files/usr/bin/chromedriver"
+else:
+    CHROME_PATH = None
+    CHROMEDRIVER_PATH = None
 
 # Direktori untuk menyimpan profil (cookies, session, dll)
 PROFILE_PATH = os.path.join(os.getcwd(), "tiktok_profile")
 
 def setup_driver():
     chrome_options = Options()
-    chrome_options.binary_location = CHROME_PATH
+    if CHROME_PATH:
+        chrome_options.binary_location = CHROME_PATH
     
     # Gunakan direktori profil untuk menyimpan sesi login
     chrome_options.add_argument(f"--user-data-dir={PROFILE_PATH}")
@@ -29,8 +35,12 @@ def setup_driver():
     # Ubah User-Agent agar tidak terdeteksi bot
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36")
 
-    service = Service(CHROMEDRIVER_PATH)
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    if IS_TERMUX and CHROMEDRIVER_PATH:
+        service = Service(CHROMEDRIVER_PATH)
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+    else:
+        # Biarkan Selenium di PC mengunduh/mencari driver otomatis
+        driver = webdriver.Chrome(options=chrome_options)
     
     # Script untuk menghilangkan deteksi selenium
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
