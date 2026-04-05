@@ -38,8 +38,6 @@ def wait_for_internet():
             time.sleep(10)
 
 def check_for_captcha(driver):
-
-def check_for_captcha(driver):
     """
     Mendeteksi apakah ada popup Captcha yang muncul.
     Jika ada, skrip akan berhenti sementara dan menunggu user menyelesaikannya secara manual di VNC.
