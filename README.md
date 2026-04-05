@@ -43,22 +43,29 @@ Jika Anda menggunakan HP Android:
    *(Hubungkan VNC Viewer di HP ke `127.0.0.1:5901`)*
 
 ### Opsi B: Pengguna PC Desktop (Windows / Mac / Linux)
-Jika Anda menggunakan PC biasa, prosesnya jauh lebih sederhana karena tidak butuh VNC:
-1. Pastikan Anda sudah menginstal **Google Chrome** di komputer Anda.
-2. Pastikan **Python 3** sudah terinstal. 
-   - **Cara Install Python di Windows (Paling Mudah):** Buka [python.org/downloads](https://www.python.org/downloads/), unduh installer-nya. **SANGAT PENTING:** Saat menginstal, pastikan Anda mencentang kotak **✅ "Add Python to PATH"** di bagian bawah sebelum mengklik Install.
-   - **Cara Install Python via CMD (Windows 10/11):** Buka Command Prompt, lalu ketik: `winget install Python.Python.3.12` (Setelah selesai, tutup dan buka kembali CMD Anda).
-3. Buka terminal/Command Prompt/PowerShell di direktori proyek ini.
+Jika Anda menggunakan PC biasa, prosesnya jauh lebih sederhana karena tidak butuh VNC. Ikuti langkah instalasi berikut secara berurutan:
+
+1. **Instal Google Chrome:** Pastikan Anda sudah menginstal browser [Google Chrome](https://www.google.com/chrome/) versi terbaru.
+2. **Instal Python 3:** 
+   - **Cara Manual (Direkomendasikan):** Unduh dari [python.org/downloads](https://www.python.org/downloads/). **SANGAT PENTING:** Saat menjalankan installer, wajib mencentang kotak **✅ "Add Python to PATH"** di bagian bawah sebelum klik "Install Now".
+   - **Cara Cepat (CMD Windows 10/11):** Buka Command Prompt, ketik: `winget install Python.Python.3.12` (Setelah selesai, tutup dan buka kembali CMD).
+3. **Instal Git:**
+   - **Cara Manual:** Unduh dari [git-scm.com](https://git-scm.com/download/win). Ikuti instruksi "Next" hingga selesai.
+   - **Cara Cepat (CMD Windows 10/11):** Buka Command Prompt, ketik: `winget install --id Git.Git -e --source winget` (Setelah selesai, tutup dan buka kembali CMD).
+4. **Verifikasi:** Buka Command Prompt (CMD) baru, ketik `python --version` dan `git --version`. Jika muncul angka versi, Anda siap lanjut ke tahap berikutnya.
 
 ---
 
 ## 🚀 Instalasi Skrip (Semua Platform)
 
-Kloning repositori ini dan instal library Python yang dibutuhkan:
+Setelah Python dan Git terpasang, jalankan perintah ini di terminal/CMD Anda:
 
 ```bash
+# 1. Clone repositori ini
 git clone https://github.com/aminmaskur88/AutoPostTikTokSelenium.git
 cd AutoPostTikTokSelenium
+
+# 2. Instal library yang dibutuhkan
 pip install -r requirements.txt
 ```
 
