@@ -45,8 +45,10 @@ Jika Anda menggunakan HP Android:
 ### Opsi B: Pengguna PC Desktop (Windows / Mac / Linux)
 Jika Anda menggunakan PC biasa, prosesnya jauh lebih sederhana karena tidak butuh VNC:
 1. Pastikan Anda sudah menginstal **Google Chrome** di komputer Anda.
-2. Pastikan **Python 3** sudah terinstal.
-3. Buka terminal/Command Prompt/PowerShell di PC Anda.
+2. Pastikan **Python 3** sudah terinstal. 
+   - **Cara Install Python di Windows (Paling Mudah):** Buka [python.org/downloads](https://www.python.org/downloads/), unduh installer-nya. **SANGAT PENTING:** Saat menginstal, pastikan Anda mencentang kotak **✅ "Add Python to PATH"** di bagian bawah sebelum mengklik Install.
+   - **Cara Install Python via CMD (Windows 10/11):** Buka Command Prompt, lalu ketik: `winget install Python.Python.3.12` (Setelah selesai, tutup dan buka kembali CMD Anda).
+3. Buka terminal/Command Prompt/PowerShell di direktori proyek ini.
 
 ---
 
