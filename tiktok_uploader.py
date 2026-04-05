@@ -2,14 +2,8 @@ import os
 import json
 import time
 import random
+import socket
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import StaleElementReferenceException
 
 from selenium.webdriver.common.action_chains import ActionChains
 
@@ -26,6 +20,24 @@ PROFILE_PATH = os.path.join(os.getcwd(), "tiktok_profile")
 
 def human_delay(min_sec=2, max_sec=5):
     time.sleep(random.uniform(min_sec, max_sec))
+
+def wait_for_internet():
+    """Menunggu koneksi internet aktif kembali sebelum melanjutkan."""
+    first_check = True
+    while True:
+        try:
+            # Mencoba menyambung ke DNS Google (8.8.8.8) pada port 53 (DNS)
+            socket.create_connection(("8.8.8.8", 53), timeout=3)
+            if not first_check:
+                print("\n[+] Koneksi internet kembali pulih! Melanjutkan skrip...")
+                time.sleep(2)
+            return True
+        except OSError:
+            first_check = False
+            print("\r⚠️ Koneksi internet terputus! Menunggu 10 detik untuk mencoba lagi... ", end="", flush=True)
+            time.sleep(10)
+
+def check_for_captcha(driver):
 
 def check_for_captcha(driver):
     """
@@ -432,7 +444,25 @@ if __name__ == "__main__":
             for i, folder in enumerate(post_folders):
                 folder_path = os.path.join(base_post_dir, folder)
                 print(f"\nPROSES: {folder}")
-                success = upload_post(folder_path, use_headless=is_headless)
+                
+                max_retries = 3
+                attempt = 0
+                success = False
+                
+                # Cek internet sebelum memulai video
+                wait_for_internet()
+
+                while attempt < max_retries:
+                    success = upload_post(folder_path, use_headless=is_headless)
+                    if success:
+                        break
+                    else:
+                        attempt += 1
+                        if attempt < max_retries:
+                            print(f"[!] Upload gagal pada percobaan ke-{attempt}. Mencoba ulang dalam 1 menit... (Internet: {wait_for_internet()})")
+                            time.sleep(60)
+                        else:
+                            print(f"[X] Gagal upload folder '{folder}' setelah {max_retries} percobaan. Lanjut ke folder berikutnya.")
                 
                 # Jeda antar postingan hanya jika berhasil dan bukan folder terakhir
                 if success and i < len(post_folders) - 1:
