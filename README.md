@@ -104,25 +104,52 @@ Setiap folder **wajib** memiliki file `post_meta.json` yang berisi detail postin
 
 ---
 
-## 📋 Alur Kerja (Workflow)
+## 📋 Alur Kerja (Workflow) & Cara Penggunaan
 
-### 1. Inisialisasi Sesi Login (Jalankan Sekali)
-Menyimpan sesi profil (cookie) Anda.
-- **Di Termux:** `export DISPLAY=:1 && python tiktok_login.py` (Lalu login via VNC).
-- **Di PC:** `python tiktok_login.py` (Browser akan terbuka, silakan login).
+### 1. Inisialisasi Sesi Login (Jalankan Sekali Saja)
+Langkah ini wajib dilakukan pertama kali di perangkat baru untuk menyimpan sesi/cookie Anda.
 
-*Tutup terminal (`Ctrl+C`) setelah Anda berhasil masuk ke beranda/profil.*
+**Di Termux (Android):**
+1. Buka aplikasi Termux.
+2. Pastikan VNC Server berjalan: `vncserver -localhost :1`
+3. Set display dan jalankan skrip:
+   ```bash
+   cd AutoPostTikTokSelenium
+   export DISPLAY=:1
+   python tiktok_login.py
+   ```
+4. Buka aplikasi **VNC Viewer** di HP Anda, sambungkan ke `127.0.0.1:5901`.
+5. Anda akan melihat browser Chrome terbuka. Silakan login ke TikTok secara manual.
+6. Setelah berhasil masuk ke Beranda, kembali ke Termux dan tekan `Ctrl + C` untuk menutup skrip. Profil Anda kini tersimpan!
+
+**Di PC (Windows/Mac/Linux):**
+1. Buka CMD/Terminal, navigasi ke folder proyek: `cd AutoPostTikTokSelenium`
+2. Jalankan: `python tiktok_login.py`
+3. Jendela Chrome akan terbuka. Login secara manual.
+4. Tutup terminal (`Ctrl + C`) setelah masuk ke Beranda.
 
 ### 2. Eksekusi Upload Masal
-Menjalankan mesin uploader otomatis.
-- **Di Termux:** `export DISPLAY=:1 && python tiktok_uploader.py`
-- **Di PC:** `python tiktok_uploader.py`
+Setelah sesi login tersimpan dan folder `Post/` sudah diisi dengan konten Anda, jalankan mesin uploader.
 
-**Cara Kerja Mesin:**
-- Skrip akan langsung mulai melakukan **Warmup** (Pemanasan menonton video).
-- Jika muncul **Captcha**, skrip akan menjeda otomatis. Selesaikan puzzle captcha-nya, dan skrip akan lanjut dengan sendirinya.
-- Folder yang hanya berisi foto akan di-skip.
-- Setelah upload sukses, **Visual Countdown** (Hitung mundur) akan berjalan di terminal sebelum melanjutkan ke video berikutnya.
+**Cara Menjalankan:**
+- **Termux:** `export DISPLAY=:1 && python tiktok_uploader.py`
+- **PC:** `python tiktok_uploader.py`
+
+**Interaksi Terminal saat Skrip Berjalan:**
+Saat skrip dijalankan, Anda akan ditanya 3 hal:
+1. **Opsi Headless (y/n):** Ketik `y` jika Anda ingin browser berjalan di latar belakang (tanpa GUI, hemat RAM, tidak butuh VNC). Ketik `n` jika ingin melihat browser bergerak. *(Sangat disarankan `n` untuk Termux jika masih sering kena Captcha).*
+2. **Nama Folder Media:** Tekan `Enter` jika konten Anda ada di folder default `Post`. Atau ketik nama folder lain jika Anda menggunakan direktori khusus.
+3. **Jeda Antar Postingan:** Masukkan angka dalam menit (contoh: `15`). Jika dibiarkan kosong (tekan `Enter`), skrip akan mengacak jeda antara 2 hingga 5 menit secara otomatis.
+
+### 3. Menggunakan Alat Pembantu XPath (`get_xpath.py`)
+Jika TikTok memperbarui tampilan webnya dan uploader gagal menemukan kotak caption atau tombol post, Anda bisa mencari XPath baru secara manual.
+
+**Cara Pakai:**
+1. Jalankan: `python get_xpath.py` (Gunakan `export DISPLAY=:1` jika di Termux).
+2. Masukkan URL: `tiktok.com/upload`
+3. Browser akan terbuka. Di terminal, tekan `Enter` untuk mulai merekam klik.
+4. Buka browser/VNC, klik pada elemen yang ingin Anda ketahui XPath-nya (misal: kotak caption).
+5. XPath dan elemen HTML akan langsung tercetak di terminal Anda. Salin XPath tersebut dan perbarui di dalam `tiktok_uploader.py`.
 
 ---
 
