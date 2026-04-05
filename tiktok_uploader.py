@@ -20,6 +20,39 @@ PROFILE_PATH = os.path.join(os.getcwd(), "tiktok_profile")
 def human_delay(min_sec=2, max_sec=5):
     time.sleep(random.uniform(min_sec, max_sec))
 
+def check_for_captcha(driver):
+    """
+    Mendeteksi apakah ada popup Captcha yang muncul.
+    Jika ada, skrip akan berhenti sementara dan menunggu user menyelesaikannya secara manual di VNC.
+    """
+    captcha_xpaths = [
+        "//*[contains(@id, 'captcha')]",
+        "//*[contains(@class, 'captcha')]",
+        "//div[@id='secsdk-captcha-drag-wrapper']"
+    ]
+    
+    for xpath in captcha_xpaths:
+        try:
+            # Cari dengan cepat, tidak perlu eksplisit wait lama
+            elements = driver.find_elements(By.XPATH, xpath)
+            for el in elements:
+                if el.is_displayed():
+                    print("\n" + "!"*50)
+                    print("⚠️ CAPTCHA TERDETEKSI!")
+                    print("⚠️ Silakan buka VNC dan selesaikan Captcha secara manual.")
+                    print("⚠️ Skrip sedang menunggu (Auto-resume jika captcha hilang)...")
+                    print("!"*50 + "\n")
+                    
+                    # Tunggu sampai elemen captcha tersebut hilang dari layar
+                    WebDriverWait(driver, 600).until_not(EC.visibility_of(el))
+                    
+                    print("[+] Captcha berhasil diselesaikan. Melanjutkan proses...")
+                    time.sleep(2)
+                    return True # Captcha ditemukan dan diselesaikan
+        except:
+            continue
+    return False
+
 def setup_driver(headless=False):
     chrome_options = Options()
     chrome_options.binary_location = CHROME_PATH
@@ -46,43 +79,72 @@ def setup_driver(headless=False):
     return driver
 
 def simulate_warmup(driver):
-    print("Memulai simulasi pemanasan (scrolling).")
+    print("Memulai simulasi pemanasan (interaksi).")
     try:
         driver.get("https://www.tiktok.com/foryou")
         human_delay(5, 8)
-        for _ in range(random.randint(2, 3)):
-            driver.execute_script(f"window.scrollBy(0, {random.randint(500, 1000)});")
-            time.sleep(random.uniform(3, 7))
-    except:
-        print("[!] Gagal warmup, lanjut ke upload...")
+        
+        # Daftar XPath tombol menu samping (For You, Following, Explore, Live, dll.) dari hasil get_xpath
+        menu_xpaths = [
+            "/html/body/div/div[2]/main/aside/div/div[2]/button",
+            "/html/body/div/div[2]/main/aside/div/div[2]/button/div/div/svg",
+            "/html/body/div/div[2]/main/aside/div/div/button/div/div/svg",
+            "/html/body/div/div[2]/main/aside/div[2]/section/div/div[2]/div/button/div/div/svg"
+        ]
+        
+        # Pilih 2-3 menu acak untuk diklik sebagai pemanasan
+        num_clicks = random.randint(2, 3)
+        for _ in range(num_clicks):
+            xpath_to_click = random.choice(menu_xpaths)
+            try:
+                # Tunggu elemen muncul (menggunakan presence karena target berupa SVG sering dianggap tidak clickable oleh Selenium)
+                btn = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, xpath_to_click)))
+                print(f"[*] Warmup: Menemukan dan mengklik menu samping...")
+                driver.execute_script("arguments[0].click();", btn) # Gunakan JS click agar lebih andal
+                human_delay(3, 7)
+                
+                # Pindah ke video selanjutnya dengan tombol Panah Bawah (Standar TikTok Web)
+                print("[*] Warmup: Menekan tombol Panah Bawah untuk melihat video berikutnya...")
+                driver.find_element(By.TAG_NAME, 'body').send_keys(Keys.ARROW_DOWN)
+                human_delay(2, 5)
+            except Exception as e:
+                print(f"[-] Warmup: Tombol menu tidak ditemukan, mengalihkan ke tonton video (Panah Bawah)...")
+                driver.find_element(By.TAG_NAME, 'body').send_keys(Keys.ARROW_DOWN)
+                human_delay(3, 7)
+                
+    except Exception as e:
+        print(f"[!] Gagal warmup: {e}, lanjut ke upload...")
 
 def upload_post(folder_path, use_headless=False):
     status_file = os.path.join(folder_path, "uploaded.status")
     if os.path.exists(status_file):
         print(f"Skipping: Postingan di {folder_path} sudah pernah diupload.")
-        return
+        return False
 
     meta_file = os.path.join(folder_path, "post_meta.json")
     if not os.path.exists(meta_file):
         print(f"Error: {meta_file} tidak ditemukan.")
-        return
+        return False
 
     with open(meta_file, 'r', encoding='utf-8') as f:
         meta = json.load(f)
 
-    media_files = []
     video_file = None
+    has_photo = False
     for f in os.listdir(folder_path):
         full_path = os.path.abspath(os.path.join(folder_path, f))
         if f.lower().endswith(".mp4"):
             video_file = full_path
             break
         elif f.lower().endswith((".jpg", ".png", ".jpeg")):
-            media_files.append(full_path)
+            has_photo = True
     
-    if not video_file and not media_files:
-        print("Error: Tidak ada media.")
-        return
+    if not video_file:
+        if has_photo:
+            print(f"[!] SKIP: Folder '{os.path.basename(folder_path)}' berisi foto. Ini foto gak bisa di upload. Lanjut ke folder berikutnya...")
+        else:
+            print(f"Error: Tidak ada file video (.mp4) ditemukan di folder {folder_path}. Skip...")
+        return False
 
     # Bangun caption dan bersihkan karakter \r agar tidak error di Linux/Termux
     caption_raw = f"{meta['post_title']}\n\n{meta['summary']}\n\n{' '.join(meta['hashtags'])}\n\n{meta['cta']}"
@@ -95,13 +157,16 @@ def upload_post(folder_path, use_headless=False):
     wait = WebDriverWait(driver, 60)
 
     try:
-        # 1. Warmup (Pemanasan)
+        # 1. Warmup (Pemanasan agar tidak terdeteksi bot)
         simulate_warmup(driver)
         
         # 2. Halaman Upload
         print(f"Menuju halaman upload untuk: {meta['post_title']}")
         driver.get("https://www.tiktok.com/creator-center/upload")
         human_delay(8, 12)
+        
+        # Cek Captcha saat masuk halaman
+        check_for_captcha(driver)
 
         # 3. Upload Media
         print("Mengunggah media...")
@@ -113,6 +178,9 @@ def upload_post(folder_path, use_headless=False):
         
         print("Media sedang diunggah. Menunggu proses preview (25 detik).")
         time.sleep(25) 
+        
+        # Cek Captcha setelah upload media
+        check_for_captcha(driver)
 
         # 4. Cari Kotak Caption (RELIABLE METHOD)
         print("Mencari kotak caption...")
@@ -193,6 +261,9 @@ def upload_post(folder_path, use_headless=False):
         actual_text = driver.execute_script("return arguments[0].innerText;", target)
         print(f"Verifikasi: Jumlah karakter di kotak sekarang = {len(actual_text)}")
         human_delay(3, 5)
+
+        # Cek Captcha sebelum posting
+        check_for_captcha(driver)
 
         # 5. Tombol Post
         print("Mengecek tombol Post...")
@@ -294,9 +365,11 @@ def upload_post(folder_path, use_headless=False):
         with open(status_file, "w") as f:
             f.write(f"Uploaded on: {time.ctime()}")
         print(f"BERHASIL: {meta['post_title']} telah diupload.")
+        return True
 
     except Exception as e:
         print(f"Terjadi kesalahan: {e}")
+        return False
     finally:
         driver.quit()
 
@@ -324,14 +397,18 @@ if __name__ == "__main__":
         if not post_folders:
             print(f"Tidak ada folder postingan.")
         else:
-            for folder in post_folders:
+            for i, folder in enumerate(post_folders):
                 folder_path = os.path.join(base_post_dir, folder)
                 print(f"\nPROSES: {folder}")
-                upload_post(folder_path, use_headless=is_headless)
+                success = upload_post(folder_path, use_headless=is_headless)
                 
-                # Jeda antar postingan
-                if folder != post_folders[-1]:
+                # Jeda antar postingan hanya jika berhasil dan bukan folder terakhir
+                if success and i < len(post_folders) - 1:
                     delay = custom_delay_seconds if custom_delay_seconds is not None else random.randint(120, 300)
-                    print(f"Menunggu {delay / 60:.1f} menit sebelum proses berikutnya...")
-                    time.sleep(delay)
+                    print(f"\nMenunggu {delay / 60:.1f} menit sebelum proses berikutnya...")
+                    for remaining in range(int(delay), 0, -1):
+                        mins, secs = divmod(remaining, 60)
+                        print(f"\r⏳ Hitung mundur: {mins:02d}:{secs:02d} detik tersisa... ", end="", flush=True)
+                        time.sleep(1)
+                    print("\n")
             print("\nSEMUA PROSES SELESAI.")

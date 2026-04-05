@@ -43,7 +43,10 @@ def main():
     while True:
         url_input = input("[?] Masukkan URL yang ingin dibuka (WAJIB): ").strip()
         if url_input:
-            target_url = url_input
+            if not url_input.startswith(('http://', 'https://')):
+                target_url = "https://" + url_input
+            else:
+                target_url = url_input
             break
         print("[!] URL tidak boleh kosong!")
     
@@ -75,7 +78,7 @@ def main():
         js_script = """
         window.is_logging = false;
         console.warn("JS_READY");
-        document.onclick = function(e) {
+        document.addEventListener('click', function(e) {
             if (!window.is_logging) return;
             e = e || window.event;
             var element = e.target || e.srcElement;
@@ -96,8 +99,8 @@ def main():
                 return xpath;
             }
             var xp = getXPath(element);
-            console.warn("CLICK_DETECTED|" + xp + "|" + element.outerHTML.substring(0, 200));
-        };
+            console.error("CLICK_DETECTED|" + xp + "|" + element.outerHTML.substring(0, 200));
+        }, true);
         """
         driver.execute_script(js_script)
         
