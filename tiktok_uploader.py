@@ -9,6 +9,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import StaleElementReferenceException
 
 from selenium.webdriver.common.action_chains import ActionChains
 
@@ -241,9 +242,15 @@ def upload_post(folder_path, use_headless=False):
             print(f"[!] Gagal klik tombol copy manual: {e}")
 
         print("Mengarahkan mouse dan klik manual ke kotak caption...")
-        target = driver.find_element(By.XPATH, caption_xpath)
-        actions = ActionChains(driver)
-        actions.move_to_element(target).click().perform()
+        for _ in range(5):
+            try:
+                target = driver.find_element(By.XPATH, caption_xpath)
+                actions = ActionChains(driver)
+                actions.move_to_element(target).click().perform()
+                break
+            except StaleElementReferenceException:
+                print("[-] Kotak caption refresh, mencari ulang...")
+                time.sleep(1)
         time.sleep(1)
 
         print("Membersihkan dan menempelkan caption (Ctrl+A -> Backspace -> Ctrl+V)...")
@@ -270,8 +277,14 @@ def upload_post(folder_path, use_headless=False):
         human_delay(2, 4)
         
         # Verifikasi akhir
-        actual_text = driver.execute_script("return arguments[0].innerText;", target)
-        print(f"Verifikasi: Jumlah karakter di kotak sekarang = {len(actual_text)}")
+        for _ in range(5):
+            try:
+                target = driver.find_element(By.XPATH, caption_xpath)
+                actual_text = driver.execute_script("return arguments[0].innerText;", target)
+                print(f"Verifikasi: Jumlah karakter di kotak sekarang = {len(actual_text)}")
+                break
+            except StaleElementReferenceException:
+                time.sleep(1)
         human_delay(3, 5)
 
         # Cek Captcha sebelum posting
@@ -294,12 +307,14 @@ def upload_post(folder_path, use_headless=False):
         ]
         
         post_button = None
+        success_xpath = None
         for xpath in post_candidates:
             try:
                 print(f"Mencoba mencari tombol Post dengan XPath: {xpath}")
                 btn = driver.find_element(By.XPATH, xpath)
                 if btn.is_displayed():
                     post_button = btn
+                    success_xpath = xpath
                     break
             except:
                 continue
@@ -324,9 +339,14 @@ def upload_post(folder_path, use_headless=False):
                 # Coba klik langsung, jika gagal gunakan JavaScript pada pusat elemen
                 for attempt in range(3):
                     try:
-                        post_button.click()
-                    except:
-                        driver.execute_script("arguments[0].click();", post_button)
+                        # Cari ulang tombol setiap kali mencoba klik untuk menghindari StaleElementReferenceException
+                        btn_to_click = driver.find_element(By.XPATH, success_xpath)
+                        try:
+                            btn_to_click.click()
+                        except:
+                            driver.execute_script("arguments[0].click();", btn_to_click)
+                    except Exception as e:
+                        print(f"[-] Gagal klik tombol post pada percobaan {attempt+1}: {e}")
                     
                     human_delay(3, 5)
 
