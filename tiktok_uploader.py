@@ -142,12 +142,12 @@ def upload_post(folder_path, use_headless=False):
     status_file = os.path.join(folder_path, "uploaded.status")
     if os.path.exists(status_file):
         print(f"Skipping: Postingan di {folder_path} sudah pernah diupload.")
-        return False
+        return "skipped"
 
     meta_file = os.path.join(folder_path, "post_meta.json")
     if not os.path.exists(meta_file):
         print(f"Error: {meta_file} tidak ditemukan.")
-        return False
+        return "skipped"
 
     with open(meta_file, 'r', encoding='utf-8') as f:
         meta = json.load(f)
@@ -167,7 +167,7 @@ def upload_post(folder_path, use_headless=False):
             print(f"[!] SKIP: Folder '{os.path.basename(folder_path)}' berisi foto. Ini foto gak bisa di upload. Lanjut ke folder berikutnya...")
         else:
             print(f"Error: Tidak ada file video (.mp4) ditemukan di folder {folder_path}. Skip...")
-        return False
+        return "skipped"
 
     # Bangun caption dan bersihkan karakter \r agar tidak error di Linux/Termux
     caption_raw = f"{meta['post_title']}\n\n{meta['summary']}\n\n{' '.join(meta['hashtags'])}\n\n{meta['cta']}"
@@ -452,7 +452,7 @@ if __name__ == "__main__":
 
                 while attempt < max_retries:
                     success = upload_post(folder_path, use_headless=is_headless)
-                    if success:
+                    if success == "skipped" or success is True:
                         break
                     else:
                         attempt += 1
@@ -462,8 +462,8 @@ if __name__ == "__main__":
                         else:
                             print(f"[X] Gagal upload folder '{folder}' setelah {max_retries} percobaan. Lanjut ke folder berikutnya.")
                 
-                # Jeda antar postingan hanya jika berhasil dan bukan folder terakhir
-                if success and i < len(post_folders) - 1:
+                # Jeda antar postingan hanya jika benar-benar berhasil upload (bukan skip) dan bukan folder terakhir
+                if success is True and i < len(post_folders) - 1:
                     delay = custom_delay_seconds if custom_delay_seconds is not None else random.randint(120, 300)
                     print(f"\nMenunggu {delay / 60:.1f} menit sebelum proses berikutnya...")
                     for remaining in range(int(delay), 0, -1):
