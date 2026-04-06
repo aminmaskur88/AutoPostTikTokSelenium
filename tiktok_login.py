@@ -1,5 +1,6 @@
 import os
 import time
+import shutil
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -16,6 +17,44 @@ else:
 # Direktori untuk menyimpan profil (cookies, session, dll)
 PROFILE_PATH = os.path.join(os.getcwd(), "tiktok_profile")
 
+def cleanup_profile(profile_path):
+    """Menghapus folder cache dan file tidak penting agar ukuran profil tetap kecil."""
+    if not os.path.exists(profile_path):
+        return
+
+    # Daftar folder yang aman untuk dihapus (hanya cache/temp, bukan session)
+    folders_to_remove = [
+        "Default/Cache",
+        "Default/Code Cache",
+        "Default/GPUCache",
+        "Default/Service Worker/CacheStorage",
+        "Default/Service Worker/ScriptCache",
+        "Default/DawnWebGPUCache",
+        "Default/DawnGraphiteCache",
+        "Default/IndexedDB", # TikTok bisa pakai ini banyak, hapus jika ingin benar-benar bersih
+        "component_crx_cache",
+        "TranslateKit",
+        "WasmTtsEngine",
+        "OnDeviceHeadSuggestModel",
+        "OptimizationHints",
+        "GraphiteDawnCache",
+        "GrShaderCache",
+        "BrowserMetrics-spare.pma"
+    ]
+
+    print(f"[*] Melakukan pembersihan profil di: {profile_path}...")
+    for folder in folders_to_remove:
+        full_path = os.path.join(profile_path, folder)
+        if os.path.exists(full_path):
+            try:
+                if os.path.isdir(full_path):
+                    shutil.rmtree(full_path)
+                else:
+                    os.remove(full_path)
+            except Exception as e:
+                print(f"[-] Gagal menghapus {folder}: {e}")
+    print("[+] Pembersihan selesai.")
+
 def setup_driver():
     chrome_options = Options()
     if CHROME_PATH:
@@ -31,6 +70,13 @@ def setup_driver():
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option("useAutomationExtension", False)
+    
+    # Optimasi ukuran profil (Disable features yang tidak perlu)
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--disable-component-update")
+    chrome_options.add_argument("--disable-features=Translate,OptimizationHints")
+    chrome_options.add_argument("--no-first-run")
+    chrome_options.add_argument("--no-default-browser-check")
     
     # Ubah User-Agent agar tidak terdeteksi bot
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36")
@@ -52,6 +98,9 @@ def main():
         os.makedirs(PROFILE_PATH)
         print(f"Membuat folder profil di: {PROFILE_PATH}")
 
+    # Bersihkan sebelum buka
+    cleanup_profile(PROFILE_PATH)
+
     print("Membuka TikTok... Silakan login secara MANUAL.")
     print("Setelah login berhasil, biarkan halaman terbuka sebentar.")
     print("Tekan Ctrl+C di terminal ini jika sudah selesai untuk menutup browser.")
@@ -72,6 +121,8 @@ def main():
         print("\nMenutup browser...")
     finally:
         driver.quit()
+        # Bersihkan setelah tutup
+        cleanup_profile(PROFILE_PATH)
 
 if __name__ == "__main__":
     main()

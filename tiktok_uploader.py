@@ -3,6 +3,7 @@ import json
 import time
 import random
 import socket
+import shutil
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -24,6 +25,45 @@ else:
     CHROMEDRIVER_PATH = None
 
 PROFILE_PATH = os.path.join(os.getcwd(), "tiktok_profile")
+
+def cleanup_profile(profile_path):
+    """Menghapus folder cache dan file tidak penting agar ukuran profil tetap kecil."""
+    if not os.path.exists(profile_path):
+        return
+
+    # Daftar folder yang aman untuk dihapus (hanya cache/temp, bukan session)
+    folders_to_remove = [
+        "Default/Cache",
+        "Default/Code Cache",
+        "Default/GPUCache",
+        "Default/Service Worker/CacheStorage",
+        "Default/Service Worker/ScriptCache",
+        "Default/DawnWebGPUCache",
+        "Default/DawnGraphiteCache",
+        "Default/IndexedDB",
+        "component_crx_cache",
+        "TranslateKit",
+        "WasmTtsEngine",
+        "OnDeviceHeadSuggestModel",
+        "OptimizationHints",
+        "GraphiteDawnCache",
+        "GrShaderCache",
+        "BrowserMetrics-spare.pma"
+    ]
+
+    print(f"[*] Melakukan pembersihan profil di: {profile_path}...")
+    for folder in folders_to_remove:
+        full_path = os.path.join(profile_path, folder)
+        if os.path.exists(full_path):
+            try:
+                if os.path.isdir(full_path):
+                    shutil.rmtree(full_path)
+                else:
+                    os.remove(full_path)
+            except Exception as e:
+                # Kadang file sedang dikunci oleh proses lain, abaikan saja
+                pass
+    print("[+] Pembersihan selesai.")
 
 def human_delay(min_sec=2, max_sec=5):
     time.sleep(random.uniform(min_sec, max_sec))
@@ -78,6 +118,9 @@ def check_for_captcha(driver):
     return False
 
 def setup_driver(headless=False):
+    # Bersihkan profil sebelum setup driver
+    cleanup_profile(PROFILE_PATH)
+
     chrome_options = Options()
     if CHROME_PATH:
         chrome_options.binary_location = CHROME_PATH
@@ -96,6 +139,14 @@ def setup_driver(headless=False):
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option("useAutomationExtension", False)
+    
+    # Optimasi ukuran profil
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--disable-component-update")
+    chrome_options.add_argument("--disable-features=Translate,OptimizationHints")
+    chrome_options.add_argument("--no-first-run")
+    chrome_options.add_argument("--no-default-browser-check")
+
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36")
     
     if IS_TERMUX and CHROMEDRIVER_PATH:
@@ -421,6 +472,8 @@ def upload_post(folder_path, use_headless=False):
         return False
     finally:
         driver.quit()
+        # Bersihkan profil setelah driver ditutup
+        cleanup_profile(PROFILE_PATH)
 
 if __name__ == "__main__":
     print("\n" + "="*50)
