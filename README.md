@@ -62,8 +62,8 @@ Setelah Python dan Git terpasang, jalankan perintah ini di terminal/CMD Anda:
 
 ```bash
 # 1. Clone repositori ini
-git clone https://github.com/aminmaskur88/AutoPostTikTokSelenium.git
-cd AutoPostTikTokSelenium
+git clone https://github.com/aminmaskur88/AutoPostTikTokSelenium.git SeleniumPostTiktok
+cd SeleniumPostTiktok
 
 # 2. Instal library yang dibutuhkan
 pip install -r requirements.txt
@@ -111,19 +111,16 @@ Langkah ini wajib dilakukan pertama kali di perangkat baru untuk menyimpan sesi/
 
 **Di Termux (Android):**
 1. Buka aplikasi Termux.
-2. Pastikan VNC Server berjalan: `vncserver -localhost :1`
-3. Set display dan jalankan skrip:
+2. Jalankan perintah satu baris ini untuk memulai VNC dan skrip login:
    ```bash
-   cd AutoPostTikTokSelenium
-   export DISPLAY=:1
-   python tiktok_login.py
+   vncserver -localhost :1; cd ~/SeleniumPostTiktok && DISPLAY=:1 python tiktok_login.py
    ```
-4. Buka aplikasi **VNC Viewer** di HP Anda, sambungkan ke `127.0.0.1:5901`.
-5. Anda akan melihat browser Chrome terbuka. Silakan login ke TikTok secara manual.
-6. Setelah berhasil masuk ke Beranda, kembali ke Termux dan tekan `Ctrl + C` untuk menutup skrip. Profil Anda kini tersimpan!
+3. Buka aplikasi **VNC Viewer** di HP Anda, sambungkan ke `127.0.0.1:5901`.
+4. Anda akan melihat browser Chrome terbuka. Silakan login ke TikTok secara manual.
+5. Setelah berhasil masuk ke Beranda, kembali ke Termux dan tekan `Ctrl + C` untuk menutup skrip. Profil Anda kini tersimpan!
 
 **Di PC (Windows/Mac/Linux):**
-1. Buka CMD/Terminal, navigasi ke folder proyek: `cd AutoPostTikTokSelenium`
+1. Buka CMD/Terminal, navigasi ke folder proyek: `cd SeleniumPostTiktok`
 2. Jalankan: `python tiktok_login.py`
 3. Jendela Chrome akan terbuka. Login secara manual.
 4. Tutup terminal (`Ctrl + C`) setelah masuk ke Beranda.
@@ -132,7 +129,7 @@ Langkah ini wajib dilakukan pertama kali di perangkat baru untuk menyimpan sesi/
 Setelah sesi login tersimpan dan folder `Post/` sudah diisi dengan konten Anda, jalankan mesin uploader.
 
 **Cara Menjalankan:**
-- **Termux:** `export DISPLAY=:1 && python tiktok_uploader.py`
+- **Termux:** `cd ~/SeleniumPostTiktok && DISPLAY=:1 python tiktok_uploader.py`
 - **PC:** `python tiktok_uploader.py`
 
 **Interaksi Terminal saat Skrip Berjalan:**
