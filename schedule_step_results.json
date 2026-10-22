@@ -1,0 +1,130 @@
+{
+  "target_schedule": "2026-10-21 18:55",
+  "detected_progress_css": [],
+  "picker_elements": [
+    {
+      "tag": "div",
+      "class": "notranslate public-DraftEditor-content",
+      "placeholder": "",
+      "value": "",
+      "text": "Capung Indikator Lingkungan Sehat Kita  Tahukah kamu, capung bukan cuma serangga dengan sayap indah? Capung adalah detektor alami kualitas lingkungan. Kehadiran capung menunjukkan ekosistem yang sehat, terutama ketersediaan air bersih dan udara yang minim polusi. Ini karena capung sangat sensitif terhadap perubahan lingkungan, menjadikannya indikator penting bagi kesehatan alam.  Larva capung atau nimfa hidup di air, sehingga keberadaan mereka sangat bergantung pada kualitas air yang baik, bebas dari bahan kimia berbahaya. Jika ada banyak capung di sekitar, itu pertanda air di daerah tersebut bersih dan aman. Mereka adalah bukti nyata adanya keseimbangan alam dan lingkungan yang terjaga dengan baik.  Jadi, lain kali kamu melihat capung terbang bebas, ingatlah bahwa mereka adalah penjaga kesehatan alam. Capung membantu kita memahami kondisi lingkungan sekitar kita, apakah masih bersih dan sehat. Mari kita jaga lingkungan kita agar capung tetap bisa hidup dan berkembang biak. Dengan begitu, kita juga menjaga kualitas hidup kita sendiri.  #Capung #LingkunganSehat #FaktaUnik",
+      "aria_label": ""
+    },
+    {
+      "tag": "button",
+      "class": "Select__trigger Select__trigger--variant-fill Select__trigger Select__trigger--variant-fill",
+      "placeholder": "",
+      "value": "",
+      "text": "",
+      "aria_label": ""
+    },
+    {
+      "tag": "button",
+      "class": "Select__trigger Select__trigger--variant-fill Select__trigger Select__trigger--variant-fill",
+      "placeholder": "",
+      "value": "",
+      "text": "Select",
+      "aria_label": ""
+    },
+    {
+      "tag": "input",
+      "class": "Radio__input",
+      "placeholder": "",
+      "value": "post_now",
+      "text": "",
+      "aria_label": ""
+    },
+    {
+      "tag": "input",
+      "class": "Radio__input",
+      "placeholder": "",
+      "value": "schedule",
+      "text": "",
+      "aria_label": ""
+    },
+    {
+      "tag": "div",
+      "class": "jsx-2483585186 scheduled-picker",
+      "placeholder": "",
+      "value": "",
+      "text": ":",
+      "aria_label": ""
+    },
+    {
+      "tag": "input",
+      "class": "TUXTextInputCore-input",
+      "placeholder": "",
+      "value": "16:15",
+      "text": "",
+      "aria_label": ""
+    },
+    {
+      "tag": "div",
+      "class": "tiktok-timepicker-time-picker-container tiktok-timepicker-invisible",
+      "placeholder": "",
+      "value": "",
+      "text": ":",
+      "aria_label": ""
+    },
+    {
+      "tag": "div",
+      "class": "tiktok-timepicker-picker-decoration",
+      "placeholder": "",
+      "value": "",
+      "text": ":",
+      "aria_label": ""
+    },
+    {
+      "tag": "input",
+      "class": "TUXTextInputCore-input",
+      "placeholder": "",
+      "value": "2026-10-21",
+      "text": "",
+      "aria_label": ""
+    },
+    {
+      "tag": "button",
+      "class": "Select__trigger Select__trigger--variant-fill Select__trigger Select__trigger--variant-fill",
+      "placeholder": "",
+      "value": "",
+      "text": "Everyone",
+      "aria_label": ""
+    },
+    {
+      "tag": "input",
+      "class": "Switch__input",
+      "placeholder": "",
+      "value": "on",
+      "text": "",
+      "aria_label": ""
+    },
+    {
+      "tag": "input",
+      "class": "Switch__input",
+      "placeholder": "",
+      "value": "on",
+      "text": "",
+      "aria_label": ""
+    },
+    {
+      "tag": "input",
+      "class": "Switch__input",
+      "placeholder": "",
+      "value": "on",
+      "text": "",
+      "aria_label": ""
+    }
+  ],
+  "submit_buttons": [
+    {
+      "text": "Posts",
+      "class": "css-1xmrn17 e1rf0ws82",
+      "disabled": "false"
+    },
+    {
+      "text": "Schedule",
+      "class": "Button__root Button__root--shape-default Button__root--size-large Button__root--type-primary",
+      "disabled": "false"
+    }
+  ]
+}

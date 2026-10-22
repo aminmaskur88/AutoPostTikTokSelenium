@@ -1,0 +1,308 @@
+{
+  "url": "https://www.tiktok.com/tiktokstudio/upload?from=upload",
+  "title": "TikTok Studio",
+  "caption_to_inject": "Capung Indikator Lingkungan Sehat Kita\n\nTahukah kamu, capung bukan cuma serangga dengan sayap indah? Capung adalah detektor alami kualitas lingkungan. Kehadiran capung menunjukkan ekosistem yang sehat, terutama ketersediaan air bersih dan udara yang minim polusi. Ini karena capung sangat sensitif terhadap perubahan lingkungan, menjadikannya indikator penting bagi kesehatan alam.\r\n\r\nLarva capung atau nimfa hidup di air, sehingga keberadaan mereka sangat bergantung pada kualitas air yang baik, bebas dari bahan kimia berbahaya. Jika ada banyak capung di sekitar, itu pertanda air di daerah tersebut bersih dan aman. Mereka adalah bukti nyata adanya keseimbangan alam dan lingkungan yang terjaga dengan baik.\r\n\r\nJadi, lain kali kamu melihat capung terbang bebas, ingatlah bahwa mereka adalah penjaga kesehatan alam. Capung membantu kita memahami kondisi lingkungan sekitar kita, apakah masih bersih dan sehat. Mari kita jaga lingkungan kita agar capung tetap bisa hidup dan berkembang biak. Dengan begitu, kita juga menjaga kualitas hidup kita sendiri.\n\n#Capung #LingkunganSehat #FaktaUnik",
+  "elements": [
+    {
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "css-1xmrn17 e1rf0ws82",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "tag": "button",
+      "type": "button",
+      "role": "button",
+      "label": "Upload",
+      "class": "photo-posting-enabled css-1xzplec eczw9xy1 Button__root Butt"
+    },
+    {
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Home",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Posts",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Analytics",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Comments",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Inspiration",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Creator Academy",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Monetization",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Royalty-free sounds",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Smart Split",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Feedback",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "css-1xmrn17 e1rf0ws82",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "tag": "button",
+      "type": "button",
+      "role": "button",
+      "label": "Replace",
+      "class": "Button__root Button__root--shape-default Button__root--size-"
+    },
+    {
+      "tag": "div",
+      "type": "",
+      "role": "combobox",
+      "label": "capung-indikator-lingkungan-sehat-kita",
+      "class": "notranslate public-DraftEditor-content"
+    },
+    {
+      "tag": "button",
+      "type": "button",
+      "role": "",
+      "label": "Hashtags",
+      "class": "jsx-489165481 caption-operation-icon"
+    },
+    {
+      "tag": "button",
+      "type": "button",
+      "role": "",
+      "label": "Mention",
+      "class": "jsx-489165481 caption-operation-icon"
+    },
+    {
+      "tag": "label",
+      "type": "",
+      "role": "",
+      "label": "Location",
+      "class": "jsx-159738805 FormField-label"
+    },
+    {
+      "tag": "button",
+      "type": "button",
+      "role": "combobox",
+      "label": "Select__trigger Select__trigge",
+      "class": "Select__trigger Select__trigger--variant-fill Select__trigge"
+    },
+    {
+      "tag": "input",
+      "type": "text",
+      "role": "input",
+      "label": "Search locations",
+      "class": "Select__searchInput"
+    },
+    {
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "ScrollList__nextBtn ScrollList",
+      "class": "ScrollList__nextBtn ScrollList__nextBtn--size-sm ScrollList_"
+    },
+    {
+      "tag": "button",
+      "type": "button",
+      "role": "combobox",
+      "label": "Select",
+      "class": "Select__trigger Select__trigger--variant-fill Select__trigge"
+    },
+    {
+      "tag": "button",
+      "type": "button",
+      "role": "button",
+      "label": "Add",
+      "class": "Button__root Button__root--shape-default Button__root--size-"
+    },
+    {
+      "tag": "label",
+      "type": "",
+      "role": "",
+      "label": "Now",
+      "class": "Radio__root Radio__root--disabled-false"
+    },
+    {
+      "tag": "input",
+      "type": "radio",
+      "role": "",
+      "label": "Radio__input",
+      "class": "Radio__input"
+    },
+    {
+      "tag": "label",
+      "type": "",
+      "role": "",
+      "label": "Schedule",
+      "class": "Radio__root Radio__root--disabled-false"
+    },
+    {
+      "tag": "input",
+      "type": "radio",
+      "role": "",
+      "label": "Radio__input",
+      "class": "Radio__input"
+    },
+    {
+      "tag": "button",
+      "type": "button",
+      "role": "combobox",
+      "label": "Everyone",
+      "class": "Select__trigger Select__trigger--variant-fill Select__trigge"
+    },
+    {
+      "tag": "div",
+      "type": "",
+      "role": "",
+      "label": "jsx-519643315 headline-switch",
+      "class": "jsx-519643315 headline-switch"
+    },
+    {
+      "tag": "input",
+      "type": "checkbox",
+      "role": "switch",
+      "label": "Switch__input",
+      "class": "Switch__input"
+    },
+    {
+      "tag": "div",
+      "type": "",
+      "role": "",
+      "label": "Music copyright check",
+      "class": "jsx-473563527 switch-wrap flow-opt-v1"
+    },
+    {
+      "tag": "div",
+      "type": "",
+      "role": "",
+      "label": "Music copyright check",
+      "class": "jsx-473563527 switch-text"
+    },
+    {
+      "tag": "input",
+      "type": "checkbox",
+      "role": "switch",
+      "label": "Switch__input",
+      "class": "Switch__input"
+    },
+    {
+      "tag": "div",
+      "type": "",
+      "role": "",
+      "label": "jsx-2629471817 headline-switch",
+      "class": "jsx-2629471817 headline-switch"
+    },
+    {
+      "tag": "input",
+      "type": "checkbox",
+      "role": "switch",
+      "label": "Switch__input",
+      "class": "Switch__input"
+    },
+    {
+      "tag": "button",
+      "type": "button",
+      "role": "button",
+      "label": "KEFVr252bWf7rL6et7-Uy Button__",
+      "class": "KEFVr252bWf7rL6et7-Uy Button__root Button__root--shape-defau"
+    },
+    {
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Edit",
+      "class": "jsx-3470764247 editor-entrance"
+    },
+    {
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Sounds",
+      "class": "jsx-3470764247 editor-entrance"
+    },
+    {
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Text",
+      "class": "jsx-3470764247 editor-entrance"
+    },
+    {
+      "tag": "button",
+      "type": "button",
+      "role": "button",
+      "label": "Post",
+      "class": "Button__root Button__root--shape-default Button__root--size-"
+    },
+    {
+      "tag": "button",
+      "type": "button",
+      "role": "button",
+      "label": "Save draft",
+      "class": "Button__root Button__root--shape-default Button__root--size-"
+    },
+    {
+      "tag": "button",
+      "type": "button",
+      "role": "button",
+      "label": "Discard",
+      "class": "Button__root Button__root--shape-default Button__root--size-"
+    },
+    {
+      "tag": "button",
+      "type": "button",
+      "role": "button",
+      "label": "Got it",
+      "class": "Button__root Button__root--shape-default Button__root--size-"
+    }
+  ]
+}

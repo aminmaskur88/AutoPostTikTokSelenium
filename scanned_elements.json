@@ -1,0 +1,214 @@
+{
+  "url": "https://www.tiktok.com/tiktokstudio/upload?from=upload",
+  "title": "TikTok Studio",
+  "elements": [
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "css-1xmrn17 e1rf0ws82",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "button",
+      "role": "button",
+      "label": "Upload",
+      "class": "photo-posting-enabled css-1xzplec eczw9xy1 Button__root Butt"
+    },
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Home",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Posts",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Analytics",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Comments",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Inspiration",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Creator Academy",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Monetization",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Royalty-free sounds",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Smart Split",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "Feedback",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "submit",
+      "role": "",
+      "label": "css-1xmrn17 e1rf0ws82",
+      "class": "css-1xmrn17 e1rf0ws82"
+    },
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "button",
+      "role": "button",
+      "label": "Try now",
+      "class": "try-now-btn Button__root Button__root--shape-default Button_"
+    },
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "submit",
+      "role": "tab",
+      "label": "Videos",
+      "class": "Tabs__trigger Tabs__trigger--size-md Tabs__trigger--type-und"
+    },
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "submit",
+      "role": "tab",
+      "label": "Photos",
+      "class": "Tabs__trigger Tabs__trigger--size-md Tabs__trigger--type-und"
+    },
+    {
+      "context": "Main Document",
+      "tag": "div",
+      "type": "",
+      "role": "",
+      "label": "Select video to upload Or drag and drop it here Select video",
+      "class": "jsx-2094875959 upload"
+    },
+    {
+      "context": "Main Document",
+      "tag": "div",
+      "type": "",
+      "role": "button",
+      "label": "Select video to upload Or drag and drop it here Select video",
+      "class": "jsx-2094875959"
+    },
+    {
+      "context": "Main Document",
+      "tag": "div",
+      "type": "",
+      "role": "",
+      "label": "Select video to upload Or drag and drop it here Select video",
+      "class": "jsx-2094875959 upload-card before-upload-new-stage full-scre"
+    },
+    {
+      "context": "Main Document",
+      "tag": "div",
+      "type": "",
+      "role": "",
+      "label": "Select video to upload Or drag and drop it here Select video",
+      "class": "jsx-2094875959 upload-stage-container"
+    },
+    {
+      "context": "Main Document",
+      "tag": "div",
+      "type": "",
+      "role": "",
+      "label": "jsx-2094875959 upload-card-ico",
+      "class": "jsx-2094875959 upload-card-icon"
+    },
+    {
+      "context": "Main Document",
+      "tag": "div",
+      "type": "",
+      "role": "",
+      "label": "Select video to upload Or drag and drop it here Select video",
+      "class": "jsx-2094875959 upload-text-container"
+    },
+    {
+      "context": "Main Document",
+      "tag": "div",
+      "type": "",
+      "role": "",
+      "label": "Select video to upload",
+      "class": "TUXText TUXText--tiktok-sans TUXText--weight-bold upload-sta"
+    },
+    {
+      "context": "Main Document",
+      "tag": "div",
+      "type": "",
+      "role": "",
+      "label": "Or drag and drop it here",
+      "class": "TUXText TUXText--tiktok-sans upload-stage-sub-title"
+    },
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "button",
+      "role": "button",
+      "label": "Select video",
+      "class": "upload-stage-btn Button__root Button__root--shape-default Bu"
+    },
+    {
+      "context": "Main Document",
+      "tag": "button",
+      "type": "button",
+      "role": "button",
+      "label": "Try now",
+      "class": "cc_entrance_btn secondary Button__root Button__root--shape-d"
+    }
+  ]
+}

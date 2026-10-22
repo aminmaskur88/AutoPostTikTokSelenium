@@ -1,6 +1,48 @@
-tiktok_profile/
-Post/
-chromedriver.log
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.log
+
+# Selenium / Driver
+chromedriver
+chromedriver.exe
+geckodriver
+geckodriver.exe
+chromedriver.log
+chrome_err.log
+DevToolsActivePort
+
+# Sesi Profil Browser & Database (SENSITIVE)
+tt_profiles/
+tiktok_profile/
+profiles/
+Cookies/
+cookies_temp.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Konten Video & Media Lokal
+content/*
+!content/.gitkeep
+Post/
+*.mp4
+*.mov
+*.avi
+*.mkv
+
+# Status & Draf Lokal
+draft_posts_tt.json
+uploaded*.txt
+upload_status.json
+*.status
+
+# OS / Editor
 .DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+.gemini/
