@@ -717,14 +717,18 @@ def run_tiktok_post_workflow(args=None):
     if not parent_folder and os.path.exists(default_content_dir):
         parent_folder = default_content_dir
     
-    # Deteksi jika input berupa perangkat HP MTP (seperti Infinix SMART 6)
-    if parent_folder.lower().startswith("this pc") or "infinix" in parent_folder.lower() or "projectkurkur" in parent_folder.lower():
-        print(f"\n{TAG_INFO} Terdeteksi perangkat HP MTP (Infinix). Menyinkronkan konten ke penyimpanan lokal...")
+    # Deteksi jika input berupa perangkat HP / Tablet MTP (seperti POCO Pad, Infinix, dll)
+    if parent_folder.lower().startswith("this pc") or any(kw in parent_folder.lower() for kw in ["poco", "infinix", "projectkurkur", "internal", "kartu sd"]):
+        print(f"\n{TAG_INFO} Terdeteksi perangkat HP/Tablet MTP. Menyinkronkan konten ke penyimpanan lokal...")
         from utils import sync_from_mtp_device
-        local_dir = sync_from_mtp_device()
+        local_dir = sync_from_mtp_device(mtp_source_path=parent_folder)
         if local_dir and os.path.exists(local_dir):
             parent_folder = local_dir
             print(f"{TAG_SUCCESS} Konten MTP berhasil disinkronkan ke: {parent_folder}")
+        else:
+            print(f"\n{TAG_ERROR} Gagal menyinkronkan konten dari MTP: '{parent_folder}'")
+            print("   Pastikan layar tablet/HP dalam keadaan menyala (tidak terkunci) dan mode USB diset ke File Transfer (MTP).")
+            return
 
     if not os.path.exists(parent_folder):
         print(f"\n{TAG_ERROR} Path tidak ditemukan atau perangkat tidak terhubung: '{parent_folder}'")

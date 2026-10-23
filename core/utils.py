@@ -86,14 +86,55 @@ def kill_profile_lock_and_processes(profile_path):
             except Exception:
                 pass
 
+def find_browser_binary():
+    """Mendeteksi lokasi binary browser berbasis Chromium yang terpasang (Brave, Chrome, Edge)."""
+    candidates = [
+        os.environ.get("CHROME_PATH"),
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+        r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+        r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe",
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    ]
+    for c in candidates:
+        if c and os.path.exists(c):
+            return c
+    return None
+
+def find_chromedriver():
+    """Mendeteksi chromedriver yang terpasang dan dapat dijalankan (tidak terblokir policy Windows)."""
+    candidates = [
+        os.environ.get("CHROMEDRIVER_PATH"),
+    ]
+    cache_base = os.path.expanduser(r"~/.cache/selenium/chromedriver/win64")
+    if os.path.exists(cache_base):
+        for ver in sorted(os.listdir(cache_base), reverse=True):
+            p = os.path.join(cache_base, ver, "chromedriver.exe")
+            if os.path.exists(p) and p not in candidates:
+                candidates.append(p)
+                
+    for c in candidates:
+        if c and os.path.exists(c):
+            try:
+                res = subprocess.run([c, "--version"], capture_output=True, text=True, timeout=2)
+                if res.returncode == 0:
+                    return c
+            except Exception:
+                continue
+    return None
+
 def setup_driver(profile_path, headless=False):
     profile_path = os.path.abspath(profile_path)
     os.makedirs(profile_path, exist_ok=True)
     kill_profile_lock_and_processes(profile_path)
     
     chrome_options = Options()
-    if CHROME_PATH:
-        chrome_options.binary_location = CHROME_PATH
+    
+    browser_bin = CHROME_PATH or find_browser_binary()
+    if browser_bin:
+        chrome_options.binary_location = browser_bin
     
     chrome_options.add_argument(f"--user-data-dir={profile_path}")
     chrome_options.add_argument("--profile-directory=Default")
@@ -120,17 +161,24 @@ def setup_driver(profile_path, headless=False):
     }
     chrome_options.add_experimental_option("prefs", prefs)
 
+    driver_bin = CHROMEDRIVER_PATH or find_chromedriver()
+    service = Service(driver_bin) if driver_bin else None
+
     try:
         if IS_TERMUX and CHROMEDRIVER_PATH:
             service = Service(CHROMEDRIVER_PATH)
             driver = webdriver.Chrome(service=service, options=chrome_options)
+        elif service:
+            driver = webdriver.Chrome(service=service, options=chrome_options)
         else:
             driver = webdriver.Chrome(options=chrome_options)
     except Exception as e:
-        print(f"[!] Gagal memulai Chrome ({e}), membersihkan file lock dan mencoba lagi...")
+        print(f"[!] Gagal memulai Browser ({e}), membersihkan file lock dan mencoba lagi...")
         kill_profile_lock_and_processes(profile_path)
         if IS_TERMUX and CHROMEDRIVER_PATH:
             service = Service(CHROMEDRIVER_PATH)
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+        elif service:
             driver = webdriver.Chrome(service=service, options=chrome_options)
         else:
             driver = webdriver.Chrome(options=chrome_options)
@@ -160,10 +208,10 @@ def update_post_status(post_path, status, progress=0):
     except Exception:
         pass
 
-def sync_from_mtp_device(local_target_dir=None):
+def sync_from_mtp_device(mtp_source_path=None, local_target_dir=None):
     """
-    Menyinkronkan folder konten dari HP Android MTP (Infinix SMART 6) ke folder konten PC lokal.
-    Menggunakan Shell.Application COM dan menunggu file tersalin sempurna.
+    Menyinkronkan folder konten dari HP / Tablet Android MTP (POCO Pad, Infinix, dll) ke folder lokal PC.
+    Mendukung path dinamis spesifik maupun fallback deteksi otomatis perangkat MTP.
     """
     if not IS_WINDOWS:
         return None
@@ -177,41 +225,118 @@ def sync_from_mtp_device(local_target_dir=None):
     ps_script = f"""
     $shell = New-Object -ComObject Shell.Application
     $thisPC = $shell.Namespace(17)
-    $phone = $thisPC.Items() | Where-Object {{ $_.Name -like "*Infinix*" -or $_.Name -like "*SMART*" }}
-    if (-not $phone) {{
-        $phone = $thisPC.Items() | Where-Object {{ $_.GetFolder -ne $null }} | Select-Object -First 1
+    $sourcePath = @'
+{mtp_source_path or ''}
+'@.Trim().Trim('"').Trim("'")
+    $targetLocal = '{local_target_dir}'
+
+    $targetFolder = $null
+
+    if ($sourcePath -and $sourcePath -ne "") {{
+        $parts = $sourcePath -split '[\\\\/]' | Where-Object {{ $_.Trim() -ne "" }}
+        if ($parts.Count -gt 0 -and $parts[0] -match "^(This PC|Computer)$") {{
+            $parts = $parts[1..($parts.Length - 1)]
+        }}
+
+        $currentFolder = $thisPC
+        $allMatched = $true
+        for ($i = 0; $i -lt $parts.Length; $i++) {{
+            $seg = $parts[$i]
+            $found = $null
+            foreach ($item in $currentFolder.Items()) {{
+                if ($item.Name -eq $seg -or $item.Name -like "*$seg*") {{
+                    $found = $item
+                    break
+                }}
+            }}
+            if (-not $found) {{
+                $allMatched = $false
+                break
+            }}
+            $currentFolder = $found.GetFolder
+            if (-not $currentFolder) {{
+                $allMatched = $false
+                break
+            }}
+        }}
+        if ($allMatched -and $currentFolder) {{
+            $targetFolder = $currentFolder
+        }}
     }}
-    if ($phone) {{
-        $storage = $phone.GetFolder.Items() | Where-Object {{ $_.Name -like "*Penyimpanan*" -or $_.Name -like "*Internal*" }}
-        if ($storage) {{
-            $kurkur = $storage.GetFolder.Items() | Where-Object {{ $_.Name -eq "ProjectKURKUR" }}
-            if ($kurkur) {{
-                $outputDir = $kurkur.GetFolder.Items() | Where-Object {{ $_.Name -eq "output_AminMaskur" }}
-                if ($outputDir) {{
-                    $targetLocal = '{local_target_dir}'
-                    foreach ($sub in $outputDir.GetFolder.Items()) {{
-                        $destSub = Join-Path $targetLocal $sub.Name
-                        $subItems = $sub.GetFolder.Items()
-                        if (-not (Test-Path $destSub) -or (Get-ChildItem -Path $destSub -ErrorAction SilentlyContinue).Count -lt 2) {{
-                            New-Item -ItemType Directory -Force -Path $destSub | Out-Null
-                            $subDestShell = $shell.Namespace($destSub)
-                            $subDestShell.CopyHere($subItems, 16)
-                            $timeout = 15
-                            while ((Get-ChildItem -Path $destSub -ErrorAction SilentlyContinue).Count -lt $subItems.Count -and $timeout -gt 0) {{
-                                Start-Sleep -Milliseconds 400
-                                $timeout--
-                            }}
-                            Write-Output "Synced: $($sub.Name)"
+
+    # Fallback auto-detection jika path tidak diberikan atau tidak cocok persis
+    if (-not $targetFolder) {{
+        $devices = $thisPC.Items() | Where-Object {{ $_.GetFolder -ne $null }}
+        foreach ($dev in $devices) {{
+            $devFolder = $dev.GetFolder
+            foreach ($st in $devFolder.Items()) {{
+                if ($st.GetFolder) {{
+                    $stFolder = $st.GetFolder
+                    foreach ($sub in $stFolder.Items()) {{
+                        if ($sub.Name -eq "output_AminMaskur") {{
+                            $targetFolder = $sub.GetFolder
+                            break
                         }}
+                        if ($sub.Name -eq "ProjectKURKUR" -and $sub.GetFolder) {{
+                            foreach ($sub2 in $sub.GetFolder.Items()) {{
+                                if ($sub2.Name -eq "output_AminMaskur") {{
+                                    $targetFolder = $sub2.GetFolder
+                                    break
+                                }}
+                            }}
+                        }}
+                        if ($targetFolder) {{ break }}
                     }}
                 }}
+                if ($targetFolder) {{ break }}
+            }}
+            if ($targetFolder) {{ break }}
+        }}
+    }}
+
+    if (-not $targetFolder) {{
+        Write-Error "MTP_SOURCE_NOT_FOUND"
+        exit 1
+    }}
+
+    if (-not (Test-Path $targetLocal)) {{
+        New-Item -ItemType Directory -Force -Path $targetLocal | Out-Null
+    }}
+
+    $items = $targetFolder.Items()
+    $synced = 0
+    foreach ($sub in $items) {{
+        $subName = $sub.Name
+        $destSub = Join-Path $targetLocal $subName
+        if (-not (Test-Path $destSub)) {{
+            New-Item -ItemType Directory -Force -Path $destSub | Out-Null
+        }}
+        $destSubShell = $shell.Namespace($destSub)
+        if ($sub.GetFolder) {{
+            $subItems = $sub.GetFolder.Items()
+            $existingCount = (Get-ChildItem -Path $destSub -ErrorAction SilentlyContinue).Count
+            if ($existingCount -lt $subItems.Count) {{
+                $destSubShell.CopyHere($subItems, 16)
+                $timeout = 25
+                while ((Get-ChildItem -Path $destSub -ErrorAction SilentlyContinue).Count -lt $subItems.Count -and $timeout -gt 0) {{
+                    Start-Sleep -Milliseconds 400
+                    $timeout--
+                }}
+                $synced++
+                Write-Output "Synced: $subName"
             }}
         }}
     }}
+    Write-Output "SYNC_SUCCESS"
     """
     try:
-        subprocess.run(["powershell", "-NoProfile", "-Command", ps_script], capture_output=True, text=True, timeout=120)
-        return local_target_dir
+        res = subprocess.run(["powershell", "-NoProfile", "-Command", ps_script], capture_output=True, text=True, timeout=180)
+        if "SYNC_SUCCESS" in res.stdout:
+            return local_target_dir
+        else:
+            if "MTP_SOURCE_NOT_FOUND" in res.stderr or "MTP_SOURCE_NOT_FOUND" in res.stdout:
+                print(f"[!] Perangkat atau path MTP tidak ditemukan: '{mtp_source_path}'")
+            return None
     except Exception as e:
         print(f"[!] Peringatan sinkronisasi MTP: {e}")
-        return local_target_dir
+        return None

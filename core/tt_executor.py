@@ -17,6 +17,8 @@ SELECTORS = {
     # Navigasi (TikTok Studio 2026 adalah native React page, tanpa iframe)
     "upload_page_url": "https://www.tiktok.com/tiktokstudio/upload?from=upload",
     "alternative_upload_url": "https://www.tiktok.com/creator-center/upload?from=upload",
+    "upload_iframe": "//iframe[contains(@src, 'creator-center') or contains(@src, 'upload')]",
+    "login_button": "//button[contains(., 'Log in') or contains(., 'Masuk') or contains(@data-e2e, 'top-login-button')]",
     
     # Tab Mode
     "tab_videos": "//button[@role='tab'][contains(., 'Videos')]",
@@ -44,9 +46,11 @@ SELECTORS = {
 
     # Date Picker & Time Picker
     "scheduled_picker_container": "//div[contains(@class, 'scheduled-picker')]",
+    "date_picker_combobox": "//*[@role='combobox'][@aria-label='Select date'] | //*[@aria-label='Select date']",
+    "time_picker_combobox": "//*[@role='combobox'][@aria-label='Select time'] | //*[@aria-label='Select time']",
     "date_picker_input": "//div[contains(@class, 'scheduled-picker')]//input[contains(@value, '-') or contains(@placeholder, 'YYYY')]",
     "time_picker_input": "//div[contains(@class, 'scheduled-picker')]//input[contains(@value, ':') or contains(@placeholder, 'HH')]",
-    "time_picker_dropdown": "//div[contains(@class, 'tiktok-timepicker-time-picker-container')]",
+    "time_picker_dropdown": "//div[contains(@class, 'TimePicker__column') or contains(@class, 'tiktok-timepicker-time-picker-container')]",
 
     # Tombol Final: Posting Sekarang atau Jadwalkan
     "post_button": "//button[contains(@class, 'Button__root')][contains(., 'Post') or contains(., 'Posting')]",
@@ -239,14 +243,24 @@ def fill_caption_and_tags(driver, caption_text, log_func=None):
         if log_func: log_func(f"Peringatan pengisian caption: {e}")
         return False
 
+def safe_log(log_func, msg, is_success=False):
+    if not log_func:
+        return
+    try:
+        log_func(msg, is_success=is_success)
+    except TypeError:
+        prefix = "[✓]" if is_success else "[i]"
+        log_func(f"{prefix} {msg}")
+
 def configure_schedule(driver, schedule_time_str, log_func=None):
     """
     Mengaktifkan opsi 'Jadwalkan postingan' (Radio Schedule) pada TikTok Studio dan menentukan tanggal serta jam.
+    Mendukung antarmuka baru TikTok Studio (Picker__trigger, role='combobox', DatePicker__day, TimePicker__column)
+    serta kompatibel mundur dengan form legacy.
     Format schedule_time_str: 'YYYY-MM-DD HH:MM'
     """
     if not schedule_time_str:
-        if log_func: log_func("Mode posting langsung (Post Now) dipilih.")
-        # Klik radio post now jika ada
+        if log_func: safe_log(log_func, "Mode posting langsung (Post Now) dipilih.")
         try:
             now_radios = driver.find_elements(By.XPATH, SELECTORS["now_radio"])
             if now_radios:
@@ -255,17 +269,19 @@ def configure_schedule(driver, schedule_time_str, log_func=None):
             pass
         return True
         
-    if log_func: log_func(f"Menyiapkan opsi jadwal TikTok: {schedule_time_str}")
+    safe_log(log_func, f"Menyiapkan opsi jadwal TikTok: {schedule_time_str}")
     dismiss_tutorial_overlay(driver)
     
     try:
         dt_obj = datetime.strptime(schedule_time_str, "%Y-%m-%d %H:%M")
         date_str = dt_obj.strftime("%Y-%m-%d")
+        target_year = str(dt_obj.year)
+        target_month = dt_obj.month
+        target_day = str(dt_obj.day)
         hour_target = f"{dt_obj.hour:02d}"
         min_rounded = (dt_obj.minute // 5) * 5
         min_target = f"{min_rounded:02d}"
         target_time_str = f"{hour_target}:{min_target}"
-        target_day = str(dt_obj.day)
         
         # 1. Cari dan klik radio Schedule
         sched_radios = driver.find_elements(By.XPATH, SELECTORS["schedule_radio"])
@@ -275,7 +291,7 @@ def configure_schedule(driver, schedule_time_str, log_func=None):
             time.sleep(0.5)
             driver.execute_script("arguments[0].click();", target_radio)
             time.sleep(1.5)
-            if log_func: log_func("Radio Schedule berhasil diaktifkan.", is_success=True)
+            safe_log(log_func, "Radio Schedule berhasil diaktifkan.", is_success=True)
         else:
             all_radios = driver.find_elements(By.XPATH, "//input[@type='radio']")
             for r in all_radios:
@@ -284,119 +300,134 @@ def configure_schedule(driver, schedule_time_str, log_func=None):
                     time.sleep(1.5)
                     break
 
-        # 2. Klik Date Picker & Pilih Tanggal di Kalender (Click-Based)
-        date_inputs = [i for i in driver.find_elements(By.XPATH, "//input") if "-" in (i.get_attribute("value") or "")]
-        if not date_inputs:
-            date_inputs = driver.find_elements(By.XPATH, SELECTORS["date_picker_input"])
+        # 2. PENGATURAN TANGGAL (DATE PICKER)
+        date_combos = driver.find_elements(By.XPATH, "//*[@role='combobox'][@aria-label='Select date'] | //*[@aria-label='Select date'] | //div[contains(@class, 'schedule-picker')]//div[@role='combobox']")
+        if date_combos:
+            date_trigger = date_combos[0]
+            safe_log(log_func, f"Membuka Date Picker (saat ini: {date_trigger.text.strip()})...")
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'}); arguments[0].click();", date_trigger)
+            time.sleep(1)
 
-        if date_inputs:
-            d_inp = date_inputs[0]
-            curr_date = d_inp.get_attribute("value")
-            if curr_date != date_str:
-                if log_func: log_func(f"Mengubah tanggal ke {date_str} (saat ini: {curr_date})...")
+            # Navigasi bulan jika target di bulan berikutnya
+            driver.execute_script("""
+                const targetMonth = arguments[0];
+                const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+                const targetMonthName = months[targetMonth - 1];
+
+                const currentMonthBtn = document.querySelector('.DatePicker__titleMonth');
+                if (currentMonthBtn && currentMonthBtn.textContent.trim() !== targetMonthName) {
+                    const nextBtn = document.querySelector('.DatePicker__nav[aria-label="Next month"]') || document.querySelector('[id*="next-button"]');
+                    if (nextBtn) { nextBtn.click(); }
+                }
+            """, target_month)
+            time.sleep(0.5)
+
+            # Klik tanggal di kalender
+            res_date = driver.execute_script("""
+                const targetDay = arguments[0];
+                const buttons = Array.from(document.querySelectorAll('.DatePicker__day'));
+                const btn = buttons.find(b => {
+                    const isOutside = b.getAttribute('data-outside') === 'true';
+                    const isDisabled = b.getAttribute('data-disabled') === 'true' || b.disabled;
+                    return !isOutside && !isDisabled && b.textContent.trim() === targetDay;
+                });
+                if (btn) {
+                    btn.scrollIntoView({block: 'center', behavior: 'instant'});
+                    btn.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, cancelable: true}));
+                    btn.click();
+                    btn.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, cancelable: true}));
+                    return true;
+                }
+                return false;
+            """, target_day)
+            time.sleep(0.8)
+            driver.execute_script("document.body.click();")
+            time.sleep(0.5)
+            safe_log(log_func, f"Pilih tanggal {target_day} di kalender: {'Berhasil' if res_date else 'Gagal'}", is_success=res_date)
+        else:
+            # Fallback legacy date input
+            date_inputs = [i for i in driver.find_elements(By.XPATH, "//input") if "-" in (i.get_attribute("value") or "")]
+            if date_inputs:
+                d_inp = date_inputs[0]
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center'}); arguments[0].click();", d_inp)
-                time.sleep(1.5)
-                
+                time.sleep(1)
                 day_cells = driver.find_elements(By.XPATH, f"//span[contains(@class, 'day') and not(contains(@class, 'disabled')) and text()='{target_day}']")
                 if day_cells:
-                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'}); arguments[0].click();", day_cells[0])
-                    time.sleep(1)
-                else:
-                    all_days = driver.find_elements(By.XPATH, "//span[contains(@class, 'day') and not(contains(@class, 'disabled'))]")
-                    for d in all_days:
-                        if d.text.strip() == target_day:
-                            driver.execute_script("arguments[0].scrollIntoView({block: 'center'}); arguments[0].click();", d)
-                            time.sleep(1)
-                            break
-                
-                # Tutup popup kalender
-                try:
-                    driver.find_element(By.XPATH, "//body").click()
-                except Exception:
-                    pass
+                    driver.execute_script("arguments[0].click();", day_cells[0])
                 time.sleep(0.5)
-            
-        # 3. Klik Time Picker & Pilih Jam & Menit di Dropdown (Click-Based)
-        time_inputs = [i for i in driver.find_elements(By.XPATH, "//input") if ":" in (i.get_attribute("value") or "")]
-        if not time_inputs:
-            time_inputs = driver.find_elements(By.XPATH, SELECTORS["time_picker_input"])
+                driver.execute_script("document.body.click();")
 
-        if time_inputs:
-            t_inp = time_inputs[0]
-            curr_time = t_inp.get_attribute("value")
-            
-            if log_func: log_func(f"Mengatur jam ke {target_time_str} (saat ini: {curr_time})...")
-            # Buka dropdown timepicker
-            driver.execute_script("arguments[0].scrollIntoView({block: 'center'}); arguments[0].click();", t_inp)
+        # 3. PENGATURAN JAM & MENIT (TIME PICKER)
+        time_combos = driver.find_elements(By.XPATH, "//*[@role='combobox'][@aria-label='Select time'] | //*[@aria-label='Select time'] | //div[contains(@class, 'schedule-picker')]//div[@role='combobox'][contains(., ':')]")
+        if time_combos:
+            time_trigger = time_combos[0]
+            safe_log(log_func, f"Membuka Time Picker ke {target_time_str} (saat ini: {time_trigger.text.strip()})...")
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'}); arguments[0].click();", time_trigger)
             time.sleep(1)
-            
+
             # 3a. Klik Jam
-            h_spans = driver.find_elements(By.XPATH, f"//span[contains(@class, 'tiktok-timepicker-left') and text()='{hour_target}']")
-            if h_spans:
-                driver.execute_script("arguments[0].scrollIntoView({block: 'nearest'});", h_spans[0])
-                time.sleep(0.3)
-                try:
-                    parent_h = h_spans[0].find_element(By.XPATH, "..")
-                    driver.execute_script("arguments[0].click();", parent_h)
-                except Exception:
-                    pass
-                driver.execute_script("arguments[0].click();", h_spans[0])
-                time.sleep(0.5)
-            else:
-                all_hours = driver.find_elements(By.XPATH, "//span[contains(@class, 'tiktok-timepicker-left')]")
-                for h in all_hours:
-                    if h.text.strip() in [hour_target, str(int(hour_target))]:
-                        driver.execute_script("arguments[0].scrollIntoView({block: 'nearest'});", h)
-                        time.sleep(0.3)
-                        try:
-                            parent_h = h.find_element(By.XPATH, "..")
-                            driver.execute_script("arguments[0].click();", parent_h)
-                        except Exception:
-                            pass
-                        driver.execute_script("arguments[0].click();", h)
-                        time.sleep(0.5)
-                        break
-                        
-            # 3b. Klik Menit
-            m_spans = driver.find_elements(By.XPATH, f"//span[contains(@class, 'tiktok-timepicker-right') and text()='{min_target}']")
-            if m_spans:
-                driver.execute_script("arguments[0].scrollIntoView({block: 'nearest'});", m_spans[0])
-                time.sleep(0.3)
-                try:
-                    parent_m = m_spans[0].find_element(By.XPATH, "..")
-                    driver.execute_script("arguments[0].click();", parent_m)
-                except Exception:
-                    pass
-                driver.execute_script("arguments[0].click();", m_spans[0])
-                time.sleep(0.5)
-            else:
-                all_mins = driver.find_elements(By.XPATH, "//span[contains(@class, 'tiktok-timepicker-right')]")
-                for m in all_mins:
-                    if m.text.strip() in [min_target, str(int(min_target))]:
-                        driver.execute_script("arguments[0].scrollIntoView({block: 'nearest'});", m)
-                        time.sleep(0.3)
-                        try:
-                            parent_m = m.find_element(By.XPATH, "..")
-                            driver.execute_script("arguments[0].click();", parent_m)
-                        except Exception:
-                            pass
-                        driver.execute_script("arguments[0].click();", m)
-                        time.sleep(0.5)
-                        break
+            h_ok = driver.execute_script("""
+                const targetH = arguments[0];
+                const hoursCol = document.querySelector('[role="listbox"][aria-label="Hours"]') || document.querySelector('.TimePicker__column');
+                if (hoursCol) {
+                    const hOpts = Array.from(hoursCol.querySelectorAll('[role="option"]'));
+                    const hBtn = hOpts.find(b => b.textContent.trim() === targetH || b.textContent.trim() === String(parseInt(targetH)));
+                    if (hBtn) {
+                        hBtn.scrollIntoView({block: 'center', behavior: 'instant'});
+                        hBtn.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, cancelable: true}));
+                        hBtn.click();
+                        hBtn.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, cancelable: true}));
+                        return true;
+                    }
+                }
+                return false;
+            """, hour_target)
+            time.sleep(0.4)
 
-            # 3c. Tutup dropdown time picker
-            try:
-                driver.find_element(By.XPATH, "//body").click()
-            except Exception:
-                driver.execute_script("arguments[0].blur();", t_inp)
-            time.sleep(1)
-            
-        final_d = date_inputs[0].get_attribute("value") if date_inputs else date_str
-        final_t = time_inputs[0].get_attribute("value") if time_inputs else target_time_str
-        if log_func: log_func(f"Jadwal TikTok berhasil diset ke {final_d} {final_t}", is_success=True)
+            # 3b. Klik Menit
+            m_ok = driver.execute_script("""
+                const targetM = arguments[0];
+                const minsCol = document.querySelector('[role="listbox"][aria-label="Minutes"]') || document.querySelectorAll('.TimePicker__column')[1];
+                if (minsCol) {
+                    const mOpts = Array.from(minsCol.querySelectorAll('[role="option"]'));
+                    const mBtn = mOpts.find(b => b.textContent.trim() === targetM || b.textContent.trim() === String(parseInt(targetM)));
+                    if (mBtn) {
+                        mBtn.scrollIntoView({block: 'center', behavior: 'instant'});
+                        mBtn.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, cancelable: true}));
+                        mBtn.click();
+                        mBtn.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, cancelable: true}));
+                        return true;
+                    }
+                }
+                return false;
+            """, min_target)
+            time.sleep(0.4)
+
+            driver.execute_script("document.body.click();")
+            time.sleep(0.5)
+            safe_log(log_func, f"Pilih jam {hour_target} dan menit {min_target}: {'Berhasil' if h_ok and m_ok else 'Gagal'}", is_success=(h_ok and m_ok))
+        else:
+            # Fallback legacy time input
+            time_inputs = [i for i in driver.find_elements(By.XPATH, "//input") if ":" in (i.get_attribute("value") or "")]
+            if time_inputs:
+                t_inp = time_inputs[0]
+                driver.execute_script("arguments[0].scrollIntoView({block: 'center'}); arguments[0].click();", t_inp)
+                time.sleep(1)
+                h_spans = driver.find_elements(By.XPATH, f"//span[contains(@class, 'tiktok-timepicker-left') and text()='{hour_target}']")
+                if h_spans:
+                    driver.execute_script("arguments[0].click();", h_spans[0])
+                m_spans = driver.find_elements(By.XPATH, f"//span[contains(@class, 'tiktok-timepicker-right') and text()='{min_target}']")
+                if m_spans:
+                    driver.execute_script("arguments[0].click();", m_spans[0])
+                time.sleep(0.5)
+                driver.execute_script("document.body.click();")
+
+        final_d = date_combos[0].text.strip() if date_combos else date_str
+        final_t = time_combos[0].text.strip() if time_combos else target_time_str
+        safe_log(log_func, f"Jadwal TikTok berhasil diset ke {final_d} {final_t}", is_success=True)
         return True
     except Exception as e:
-        if log_func: log_func(f"Peringatan pengaturan jadwal: {e}")
+        safe_log(log_func, f"Peringatan pengaturan jadwal: {e}")
         return False
 
 def submit_post(driver, is_scheduled=True, log_func=None):
