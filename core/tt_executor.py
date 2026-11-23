@@ -31,7 +31,8 @@ SELECTORS = {
     
     # Status / Progres Upload
     "upload_progress_bar": "//div[contains(@class, 'info-progress')]",
-    "upload_success_indicator": "//div[contains(@class, 'info-progress') and contains(@class, 'success')] | //div[contains(@class, 'public-DraftEditor-content')]",
+    "upload_success_indicator": "//div[contains(@class, 'info-progress') and contains(@class, 'success')] | //*[contains(@class, 'info-status')][contains(., 'Uploaded') or contains(., 'Diunggah')]",
+    "replace_video_button": "//button[normalize-space(.)='Replace' or normalize-space(.)='Ganti']",
 
     # Pop-up Tutorial / Overlay TikTok Studio
     "tutorial_got_it": "//button[contains(., 'Got it') or contains(., 'Mengerti')]",
@@ -39,6 +40,23 @@ SELECTORS = {
 
     # Editor Caption / Judul
     "caption_editor": "//div[contains(@class, 'public-DraftEditor-content')] | //div[@contenteditable='true']",
+
+    # Cover / Custom Thumbnail Editor
+    "cover_container": "//div[@data-e2e='cover_container'] | //div[contains(@class, 'cover-container')]",
+    "edit_cover_button": (
+        "//div[@data-e2e='cover_container']//div[contains(@class, 'edit-container')]"
+        " | //div[contains(@class, 'cover-container')]//div[contains(@class, 'edit-container')]"
+        " | //*[normalize-space(text())='Edit cover' or normalize-space(text())='Edit sampul']"
+    ),
+    "upload_cover_tab": (
+        "//div[contains(@class, 'ImageUpload__root')]"
+        " | //*[normalize-space(text())='Upload cover' or normalize-space(text())='Unggah sampul']"
+    ),
+    "cover_file_input": "//input[@type='file' and contains(@accept, 'image')]",
+    "cover_save_button": (
+        "//button[contains(@class, 'header-button') and contains(@class, 'primary')][contains(., 'Save') or contains(., 'Simpan') or contains(., 'Confirm') or contains(., 'Konfirmasi')]"
+        " | //div[contains(@class, 'CoverEditor')]//button[contains(., 'Save') or contains(., 'Simpan') or contains(., 'Confirm') or contains(., 'Konfirmasi')]"
+    ),
 
     # Opsi Penjadwalan (Radio Schedule & Now)
     "schedule_radio": "//label[contains(., 'Schedule')] | //div[contains(@class, 'Radio')][contains(., 'Schedule')] | //input[@type='radio'][@value='schedule']",
@@ -158,36 +176,135 @@ def upload_media_file(driver, media_files, log_func=None):
     if log_func: log_func("File berhasil dikirim ke input upload TikTok.", is_success=True)
     return True
 
-def wait_media_processed(driver, timeout_sec=120, log_func=None):
+def wait_media_processed(driver, timeout_sec=300, log_func=None):
     """
-    Menunggu proses upload dan rendering awal video TikTok selesai sebelum mengatur metadata.
+    Menunggu proses upload dan rendering video TikTok benar-benar selesai (100% / Uploaded)
+    sebelum lanjut ke custom thumbnail, caption, dan jadwal.
+    Memantau:
+    - info-status (info vs success / 'Uploaded')
+    - info-aside (persentase % & tombol Cancel vs tombol Replace)
+    - cover-info-tip ('Uploading...')
+    - tombol Post/Schedule (disabled vs aktif)
     """
-    if log_func: log_func("Menunggu verifikasi upload media TikTok...")
+    safe_log(log_func, "Menunggu proses upload & verifikasi media TikTok selesai...")
     start_time = time.time()
-    
+    min_wait_sec = 5  # Jeda awal agar UI progress bar sempat muncul
+    stable_done_ticks = 0
+    last_progress_msg = ""
+
     while time.time() - start_time < timeout_sec:
         switch_to_upload_frame(driver)
-        # Deteksi indikator berhasil upload atau kotak preview
+        handle_confirmation_popups(driver, log_func=log_func)
+        elapsed = time.time() - start_time
+
         try:
-            success_indicators = driver.find_elements(By.XPATH, SELECTORS["upload_success_indicator"])
-            if any(el.is_displayed() for el in success_indicators):
-                if log_func: log_func("Media berhasil diunggah ke TikTok!", is_success=True)
-                return True
+            status = driver.execute_script("""
+                const isVis = (el) => el && el.offsetParent !== null;
+
+                // 1. Cek cover-info-tip ('Uploading...' / 'Processing...')
+                const coverTips = Array.from(document.querySelectorAll('[class*="cover-info-tip"]')).filter(isVis);
+                const coverTipText = coverTips.map(el => (el.textContent || '').trim()).join(' ');
+                const coverUploading = /uploading|mengunggah|processing|memproses/i.test(coverTipText);
+
+                // 2. Cek info-status (saat upload: class 'info-status info' dgn 'MB/' atau 'seconds left'; saat selesai: 'info-status success' dgn 'Uploaded')
+                const statusEls = Array.from(document.querySelectorAll('[class*="info-status"]')).filter(isVis);
+                let statusText = '';
+                let statusIsSuccess = false;
+                let statusIsUploading = false;
+                for (const el of statusEls) {
+                    const cls = typeof el.className === 'string' ? el.className : '';
+                    const t = (el.textContent || '').trim();
+                    if (t) statusText += ' ' + t;
+                    if (cls.includes('success') || /\\buploaded\\b|\\bdiunggah\\b/i.test(t)) {
+                        statusIsSuccess = true;
+                    }
+                    if (/seconds? left|minutes? left|detik|menit|uploading|mengunggah|processing|memproses|\\d+(?:\\.\\d+)?\\s*mb\\s*\\/\\s*\\d+/i.test(t)) {
+                        statusIsUploading = true;
+                    }
+                }
+                statusText = statusText.trim();
+
+                // 3. Cek info-aside (saat upload: 'Cancel' + '51.36%'; saat selesai: 'Replace')
+                const asideEls = Array.from(document.querySelectorAll('[class*="info-aside"], [class*="info-progress"], [role="progressbar"]')).filter(isVis);
+                let asideText = '';
+                for (const el of asideEls) {
+                    const t = (el.textContent || '').trim();
+                    if (t) asideText += ' ' + t;
+                }
+                asideText = asideText.trim();
+
+                const pctMatch = (asideText + ' ' + statusText).match(/(\\d+(?:\\.\\d+)?)\\s*%/);
+                const pctVal = pctMatch ? parseFloat(pctMatch[1]) : null;
+                const asideHasCancel = /\\bcancel\\b|\\bbatal\\b/i.test(asideText);
+                const progressStillRunning = (
+                    statusIsUploading ||
+                    asideHasCancel ||
+                    (pctVal !== null && pctVal < 100) ||
+                    /uploading|mengunggah|processing|memproses/i.test(asideText)
+                );
+
+                // 4. Cek tombol Replace & tombol Post/Schedule
+                const btns = Array.from(document.querySelectorAll('button')).filter(isVis);
+                const replaceBtn = btns.some(b => {
+                    const txt = (b.textContent || '').trim().toLowerCase();
+                    return txt === 'replace' || txt === 'ganti';
+                });
+                const submitReady = btns.some(b => {
+                    const txt = (b.textContent || '').trim().toLowerCase();
+                    const disabled = b.disabled || b.getAttribute('aria-disabled') === 'true';
+                    return !disabled && (txt === 'post' || txt === 'posting' || txt === 'schedule' || txt === 'jadwalkan');
+                });
+
+                const editorReady = Array.from(document.querySelectorAll('.public-DraftEditor-content, [contenteditable="true"]')).some(isVis);
+
+                return {
+                    coverUploading,
+                    coverTipText,
+                    statusIsSuccess,
+                    statusText,
+                    progressStillRunning,
+                    pctVal,
+                    replaceBtn,
+                    editorReady,
+                    submitReady
+                };
+            """)
         except Exception:
-            pass
-        
-        # Cek apakah editor caption sudah muncul (indikasi upload sudah diproses)
-        try:
-            editor = driver.find_elements(By.XPATH, SELECTORS["caption_editor"])
-            if any(ed.is_displayed() for ed in editor):
-                if log_func: log_func("Editor caption siap digunakan.", is_success=True)
+            status = {}
+
+        still_uploading = bool(status.get("coverUploading") or status.get("progressStillRunning"))
+        done_signal = bool(
+            (status.get("statusIsSuccess") and not still_uploading)
+            or (status.get("replaceBtn") and status.get("submitReady") and not still_uploading)
+        )
+
+        # Log progres upload secara berkala
+        if still_uploading:
+            stable_done_ticks = 0
+            pct = status.get("pctVal")
+            if pct is not None:
+                prog_msg = f"Mengunggah media ke TikTok... ({pct:.1f}%)"
+            elif status.get("statusText"):
+                prog_msg = f"Mengunggah media... ({status['statusText'][:45]})"
+            elif status.get("coverTipText"):
+                prog_msg = f"Memproses media TikTok... ({status['coverTipText'][:30]})"
+            else:
+                prog_msg = f"Mengunggah media ke TikTok... ({int(elapsed)}d)"
+            if prog_msg != last_progress_msg:
+                safe_log(log_func, prog_msg)
+                last_progress_msg = prog_msg
+        elif elapsed >= min_wait_sec and done_signal:
+            # Pastikan kondisi selesai stabil selama 2 pengecekan berturut-turut (~4 detik)
+            stable_done_ticks += 1
+            if stable_done_ticks >= 2:
+                safe_log(log_func, "Media berhasil diunggah & diproses 100% di TikTok!", is_success=True)
                 return True
-        except Exception:
-            pass
-            
+        else:
+            stable_done_ticks = 0
+
         time.sleep(2)
-        
-    if log_func: log_func("Waktu tunggu upload habis, melanjutkan dengan asumsi media telah diterima...")
+
+    safe_log(log_func, "Waktu tunggu upload habis, melanjutkan dengan asumsi media telah diterima...")
     return True
 
 def dismiss_tutorial_overlay(driver):
@@ -200,6 +317,193 @@ def dismiss_tutorial_overlay(driver):
         driver.execute_script("var o = document.querySelector('.react-joyride__overlay'); if(o) o.remove();")
     except Exception:
         pass
+
+def _prepare_thumbnail_file(thumbnail_path):
+    """
+    Memastikan file thumbnail dalam format JPG/PNG yang didukung TikTok Studio.
+    Mengembalikan tuple (path_siap_upload, is_temp_file).
+    """
+    abs_path = os.path.abspath(thumbnail_path)
+    ext = os.path.splitext(abs_path)[1].lower()
+    if ext in (".jpg", ".jpeg", ".png"):
+        return abs_path, False
+
+    # Jika format lain (misal .webp), coba konversi otomatis ke .jpg sementara jika Pillow tersedia
+    try:
+        from PIL import Image
+        import tempfile
+        with Image.open(abs_path) as img:
+            rgb_img = img.convert("RGB")
+            fd, tmp_jpg = tempfile.mkstemp(suffix=".jpg", prefix="tt_thumb_")
+            os.close(fd)
+            rgb_img.save(tmp_jpg, "JPEG", quality=95)
+            return tmp_jpg, True
+    except Exception:
+        return abs_path, False
+
+def upload_custom_thumbnail(driver, thumbnail_path, log_func=None, timeout_sec=30):
+    """
+    Mengunggah custom thumbnail (cover) untuk video di TikTok Studio.
+    Alur:
+    1. Tunggu tombol 'Edit cover' siap (proses upload awal cover selesai)
+    2. Klik 'Edit cover' untuk membuka modal CoverEditor
+    3. Cari input file image (atau klik tab 'Upload cover' terlebih dahulu jika diperlukan)
+    4. Kirim path gambar thumbnail ke input file
+    5. Klik tombol 'Save' / 'Confirm' pada modal CoverEditor
+    """
+    if not thumbnail_path or not os.path.isfile(thumbnail_path):
+        safe_log(log_func, f"File custom thumbnail tidak ditemukan: {thumbnail_path}")
+        return False
+
+    safe_log(log_func, f"Mengunggah custom thumbnail: {os.path.basename(thumbnail_path)}")
+    dismiss_tutorial_overlay(driver)
+    switch_to_upload_frame(driver)
+
+    prepared_path, is_temp = _prepare_thumbnail_file(thumbnail_path)
+    try:
+        # 1. Tunggu tombol 'Edit cover' muncul dan siap diklik
+        edit_btn = None
+        start_time = time.time()
+        while time.time() - start_time < timeout_sec:
+            dismiss_tutorial_overlay(driver)
+            try:
+                cands = driver.find_elements(By.XPATH, SELECTORS["edit_cover_button"])
+                visible_cands = [c for c in cands if c.is_displayed()]
+                if visible_cands:
+                    # Pastikan tidak sedang dalam state 'Uploading...' pada cover-info-tip
+                    uploading_tips = driver.find_elements(
+                        By.XPATH,
+                        "//div[contains(@class, 'cover-info-tip')][contains(., 'Uploading') or contains(., 'Mengunggah')]"
+                    )
+                    if not any(t.is_displayed() for t in uploading_tips):
+                        edit_btn = visible_cands[0]
+                        break
+                    elif time.time() - start_time > 10:
+                        # Tetap coba klik setelah 10 detik walau tip masih tampil
+                        edit_btn = visible_cands[0]
+                        break
+            except Exception:
+                pass
+            time.sleep(1)
+
+        if not edit_btn:
+            safe_log(log_func, "Tombol 'Edit cover' tidak ditemukan di halaman upload TikTok.")
+            return False
+
+        # 2. Klik 'Edit cover' (dan fallback ke parent cover-container jika modal belum terbuka)
+        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", edit_btn)
+        time.sleep(0.5)
+        driver.execute_script("arguments[0].click();", edit_btn)
+
+        # 3. Tunggu modal CoverEditor terbuka dan cari input file cover image
+        cover_inputs = []
+        modal_start = time.time()
+        retried_container = False
+        while time.time() - modal_start < 12:
+            time.sleep(1)
+            cover_inputs = driver.find_elements(By.XPATH, SELECTORS["cover_file_input"])
+            if cover_inputs:
+                break
+
+            # Jika tab 'Upload cover' terlihat, klik dulu
+            upload_tabs = driver.find_elements(By.XPATH, SELECTORS["upload_cover_tab"])
+            visible_tabs = [t for t in upload_tabs if t.is_displayed()]
+            if visible_tabs:
+                driver.execute_script("arguments[0].click();", visible_tabs[0])
+                time.sleep(1)
+                cover_inputs = driver.find_elements(By.XPATH, SELECTORS["cover_file_input"])
+                if cover_inputs:
+                    break
+
+            # Jika setelah 3 detik modal belum terbuka, coba klik parent cover-container & ActionChains
+            if not retried_container and (time.time() - modal_start >= 3):
+                retried_container = True
+                try:
+                    containers = driver.find_elements(By.XPATH, SELECTORS["cover_container"])
+                    vis_cont = [c for c in containers if c.is_displayed()]
+                    if vis_cont:
+                        driver.execute_script("arguments[0].scrollIntoView({block: 'center'}); arguments[0].click();", vis_cont[-1])
+                    else:
+                        ActionChains(driver).move_to_element(edit_btn).click().perform()
+                except Exception:
+                    pass
+
+        if not cover_inputs:
+            safe_log(log_func, "Input file upload cover tidak ditemukan di modal Edit cover.")
+            return False
+
+        # 4. Kirim file gambar thumbnail ke input file cover
+        cover_inputs[-1].send_keys(os.path.abspath(prepared_path))
+        safe_log(log_func, "Gambar thumbnail dikirim ke editor cover, menunggu pratinjau...")
+        time.sleep(2.5)
+
+        # 5. Tunggu tombol Save aktif lalu klik (menggunakan JS DOM query agar kebal terhadap portal/headless)
+        save_clicked = False
+        save_start = time.time()
+        while time.time() - save_start < 15:
+            clicked = driver.execute_script("""
+                const targets = ['save', 'simpan', 'confirm', 'konfirmasi'];
+                const btns = Array.from(document.querySelectorAll('button'));
+                // Prioritaskan tombol header-button primary di modal CoverEditor
+                const match = btns.find(b => {
+                    if (b.offsetParent === null) return false;
+                    if (b.disabled || b.getAttribute('aria-disabled') === 'true') return false;
+                    const cls = typeof b.className === 'string' ? b.className : '';
+                    const txt = (b.textContent || '').trim().toLowerCase();
+                    return cls.includes('header-button') && cls.includes('primary') && targets.includes(txt);
+                }) || btns.find(b => {
+                    if (b.offsetParent === null) return false;
+                    if (b.disabled || b.getAttribute('aria-disabled') === 'true') return false;
+                    const cls = typeof b.className === 'string' ? b.className : '';
+                    const txt = (b.textContent || '').trim().toLowerCase();
+                    return (cls.includes('header-button') || b.closest('[class*="CoverEditor"], [role="dialog"]')) && targets.includes(txt);
+                });
+                if (match) {
+                    match.scrollIntoView({block: 'center', behavior: 'instant'});
+                    match.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, cancelable: true}));
+                    match.click();
+                    match.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, cancelable: true}));
+                    return true;
+                }
+                return false;
+            """)
+            if clicked:
+                save_clicked = True
+                break
+            time.sleep(0.8)
+
+        if not save_clicked:
+            safe_log(log_func, "Tombol Save/Confirm pada modal Edit cover tidak ditemukan atau nonaktif.")
+            return False
+
+        # 6. Tunggu modal CoverEditor tertutup
+        close_start = time.time()
+        while time.time() - close_start < 10:
+            still_open = driver.execute_script("""
+                const targets = ['save', 'simpan', 'confirm', 'konfirmasi'];
+                return Array.from(document.querySelectorAll('button')).some(b => {
+                    if (b.offsetParent === null) return false;
+                    const cls = typeof b.className === 'string' ? b.className : '';
+                    const txt = (b.textContent || '').trim().toLowerCase();
+                    return cls.includes('header-button') && cls.includes('primary') && targets.includes(txt);
+                });
+            """)
+            if not still_open:
+                break
+            time.sleep(0.5)
+
+        time.sleep(1)
+        safe_log(log_func, "Custom thumbnail berhasil dipasang!", is_success=True)
+        return True
+    except Exception as e:
+        safe_log(log_func, f"Peringatan upload custom thumbnail: {e}")
+        return False
+    finally:
+        if is_temp and prepared_path and os.path.exists(prepared_path):
+            try:
+                os.remove(prepared_path)
+            except Exception:
+                pass
 
 def fill_caption_and_tags(driver, caption_text, log_func=None):
     """
@@ -234,6 +538,11 @@ def fill_caption_and_tags(driver, caption_text, log_func=None):
                 editor.send_keys(caption_text)
                 
             time.sleep(1)
+            # Tutup popover autocomplete hashtag/mention jika muncul
+            try:
+                ActionChains(driver).send_keys(Keys.ESCAPE).perform()
+            except Exception:
+                pass
             if log_func: log_func("Caption berhasil diisi.", is_success=True)
             return True
         else:
@@ -403,7 +712,12 @@ def configure_schedule(driver, schedule_time_str, log_func=None):
             """, min_target)
             time.sleep(0.4)
 
-            driver.execute_script("document.body.click();")
+            driver.execute_script("""
+                const titleEl = document.querySelector('.scheduled-title-container') || document.body;
+                titleEl.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, cancelable: true}));
+                titleEl.click();
+                titleEl.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, cancelable: true}));
+            """)
             time.sleep(0.5)
             safe_log(log_func, f"Pilih jam {hour_target} dan menit {min_target}: {'Berhasil' if h_ok and m_ok else 'Gagal'}", is_success=(h_ok and m_ok))
         else:
@@ -430,66 +744,140 @@ def configure_schedule(driver, schedule_time_str, log_func=None):
         safe_log(log_func, f"Peringatan pengaturan jadwal: {e}")
         return False
 
+def handle_confirmation_popups(driver, log_func=None):
+    """
+    Mendeteksi dan mengklik tombol konfirmasi pada dialog / modal / toaster TikTok
+    (misal: 'Post now' pada modal 'Continue to post?', 'Schedule now', 'Allow', 'Izinkan',
+    'Continue to post', 'Post anyway', 'Confirm').
+    Catatan: TUXModal-overlay memakai position:fixed sehingga offsetParent === null;
+    wajib gunakan getBoundingClientRect().
+    """
+    try:
+        clicked_label = driver.execute_script("""
+            const isVis = (el) => {
+                if (!el) return false;
+                const r = el.getBoundingClientRect();
+                return r.width > 0 && r.height > 0 && window.getComputedStyle(el).visibility !== 'hidden';
+            };
+            const confirmKeywords = [
+                'post now', 'schedule now', 'continue to post', 'post anyway',
+                'allow', 'izinkan', 'confirm', 'konfirmasi',
+                'tetap posting', 'tetap jadwalkan', 'lanjutkan posting', 'turn on'
+            ];
+            const containers = Array.from(document.querySelectorAll(
+                '.TUXModal, .TUXModal-overlay, .common-modal, [role="dialog"], [role="alertdialog"], [class*="modal"], [class*="Modal"], [class*="toast"], [class*="Toast"]'
+            )).filter(isVis);
+
+            for (const c of containers) {
+                const btns = Array.from(c.querySelectorAll('button')).filter(b => {
+                    if (!isVis(b)) return false;
+                    if (b.disabled || b.getAttribute('aria-disabled') === 'true') return false;
+                    return true;
+                });
+                for (const b of btns) {
+                    const txt = (b.textContent || '').trim().replace(/\\s+/g, ' ');
+                    const low = txt.toLowerCase();
+                    if (confirmKeywords.some(k => low === k || low.includes(k))) {
+                        b.scrollIntoView({block: 'center', behavior: 'instant'});
+                        b.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, cancelable: true}));
+                        b.click();
+                        b.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, cancelable: true}));
+                        return txt;
+                    }
+                }
+            }
+            return null;
+        """)
+        if clicked_label:
+            safe_log(log_func, f"Mengonfirmasi pop-up/modal TikTok: '{clicked_label}'...", is_success=True)
+            time.sleep(2)
+            return clicked_label
+    except Exception:
+        pass
+    return None
+
 def submit_post(driver, is_scheduled=True, log_func=None):
     """
-    Mengklik tombol 'Posting' atau 'Jadwalkan' dan menunggu respon.
+    Menunggu tombol 'Posting' atau 'Jadwalkan' aktif, mengkliknya, lalu menangani
+    pop-up / toaster konfirmasi (termasuk 'Allow', 'Post now', 'Schedule now', 'Continue to post').
     """
     action_name = "Jadwalkan" if is_scheduled else "Posting"
-    if log_func: log_func(f"Mengklik tombol final: {action_name}...")
+    safe_log(log_func, f"Menyiapkan klik tombol final: {action_name}...")
     switch_to_upload_frame(driver)
     
     try:
+        # Tangani pop-up Allow / konfirmasi jika sudah muncul sebelum submit
+        handle_confirmation_popups(driver, log_func=log_func)
+
         xpath_btn = SELECTORS["schedule_button"] if is_scheduled else SELECTORS["post_button"]
-        btns = driver.find_elements(By.XPATH, xpath_btn)
-        visible_btns = [b for b in btns if b.is_displayed() and b.get_attribute("aria-disabled") != "true"]
-        
+        visible_btns = []
+        wait_start = time.time()
+        while time.time() - wait_start < 30:
+            btns = driver.find_elements(By.XPATH, xpath_btn)
+            visible_btns = [
+                b for b in btns
+                if b.is_displayed()
+                and not b.get_attribute("disabled")
+                and b.get_attribute("aria-disabled") != "true"
+            ]
+            if visible_btns:
+                break
+            handle_confirmation_popups(driver, log_func=log_func)
+            time.sleep(1)
+
         if visible_btns:
-            driver.execute_script("arguments[0].click();", visible_btns[-1])
-            time.sleep(2)
+            target_btn = visible_btns[-1]
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'}); arguments[0].click();", target_btn)
+            safe_log(log_func, f"Tombol {action_name} diklik, memeriksa konfirmasi/toaster...", is_success=True)
 
-            # Cek jika muncul pop-up konfirmasi TikTok ("Continue to post?" / "We're still checking your video...")
-            confirm_modal_xpath = (
-                "//div[@role='dialog']//button[contains(., 'Post now') or contains(., 'Schedule now') or contains(., 'Continue to post') or contains(., 'Post anyway') or contains(., 'Tetap posting') or contains(., 'Tetap jadwalkan')]"
-                "| //div[contains(@class, 'modal')]//button[contains(., 'Post now') or contains(., 'Schedule now') or contains(., 'Continue to post')]"
-            )
-            confirm_btns = driver.find_elements(By.XPATH, confirm_modal_xpath)
-            for cb in confirm_btns:
-                if cb.is_displayed():
-                    if log_func: log_func(f"Mengonfirmasi pop-up dialog: '{cb.text}'...")
-                    driver.execute_script("arguments[0].click();", cb)
-                    time.sleep(2)
+            # Pantau hingga ~8 detik untuk pop-up konfirmasi bertingkat (Allow / Post now / Continue to post)
+            for _ in range(4):
+                time.sleep(2)
+                clicked = handle_confirmation_popups(driver, log_func=log_func)
+                if not clicked:
                     break
-
-            if log_func: log_func(f"Tombol {action_name} berhasil diklik.", is_success=True)
             return True
         else:
-            if log_func: log_func("Tombol submit belum aktif atau tidak ditemukan.")
+            safe_log(log_func, f"Tombol {action_name} belum aktif atau tidak ditemukan setelah 30 detik.")
             return False
     except Exception as e:
-        if log_func: log_func(f"Gagal mengklik tombol submit: {e}")
+        safe_log(log_func, f"Gagal mengklik tombol submit: {e}")
         return False
 
-def wait_completion(driver, timeout_sec=25, log_func=None):
+def wait_completion(driver, timeout_sec=30, log_func=None):
     """
-    Menunggu munculnya konfirmasi sukses upload/jadwal TikTok (banner toast yang drop dari atas atau redirect).
+    Menunggu munculnya konfirmasi sukses upload/jadwal TikTok (banner toast yang drop dari atas atau redirect),
+    sambil tetap menangani jika muncul pop-up/toaster konfirmasi 'Allow' / 'Continue to post'.
     """
-    if log_func: log_func("Menunggu konfirmasi posting dari TikTok...")
+    safe_log(log_func, "Menunggu konfirmasi posting dari TikTok...")
     start_time = time.time()
     
-    # Selector untuk banner notifikasi drop dari atas / toast / modal sukses TikTok
+    # Selector khusus notifikasi sukses posting (hindari false-positive dari 'Uploaded (65MB)' di kartu file)
     success_xpath = (
-        "//*[contains(@class, 'toast') or contains(@class, 'Toast') or contains(@class, 'notification') or @role='status' or @role='alert']"
-        "| //*[contains(text(), 'dijadwalkan') or contains(text(), 'scheduled') or contains(text(), 'uploaded') or contains(text(), 'diunggah') or contains(text(), 'Manage your posts') or contains(text(), 'Kelola postingan')]"
-        "| //button[contains(., 'Upload another') or contains(., 'Manage your posts') or contains(., 'Unggah video lain') or contains(., 'Kelola')]"
+        "//*[contains(@class, 'toast') or contains(@class, 'Toast') or contains(@class, 'notification') or @role='alert']"
+        "| //*[contains(text(), 'Your video has been') or contains(text(), 'Video Anda telah') or contains(text(), 'dijadwalkan') or contains(text(), 'has been scheduled') or contains(text(), 'Manage your posts') or contains(text(), 'Kelola postingan')]"
+        "| //button[contains(., 'Upload another') or contains(., 'Manage your posts') or contains(., 'Unggah video lain')]"
     )
     
     while time.time() - start_time < timeout_sec:
+        # Jika muncul pop-up/toaster konfirmasi (Allow / Post now / Continue to post), klik dulu
+        if handle_confirmation_popups(driver, log_func=log_func):
+            continue
+
         try:
             elements = driver.find_elements(By.XPATH, success_xpath)
-            visible_elements = [el for el in elements if el.is_displayed()]
+            visible_elements = [
+                el for el in elements
+                if el.is_displayed() and (el.text or "").strip()
+            ]
             if visible_elements:
                 toast_text = visible_elements[0].text.strip().replace('\n', ' ')
-                if log_func: log_func(f"Notifikasi sukses terdeteksi (Toast Banner): '{toast_text[:60]}'", is_success=True)
+                # Jangan anggap selesai jika toast/alert justru berisi konfirmasi Allow
+                if "allow" in toast_text.lower() or "izinkan" in toast_text.lower():
+                    handle_confirmation_popups(driver, log_func=log_func)
+                    time.sleep(1)
+                    continue
+                safe_log(log_func, f"Notifikasi sukses terdeteksi (Toast Banner): '{toast_text[:60]}'", is_success=True)
                 time.sleep(3)
                 
                 # Cek jika ada tombol 'Upload another video' untuk reset form
@@ -502,12 +890,12 @@ def wait_completion(driver, timeout_sec=25, log_func=None):
             pass
             
         if any(keyword in driver.current_url for keyword in ["manage", "creator-center/content", "tiktokstudio/content"]):
-            if log_func: log_func("Halaman beralih ke daftar konten (berhasil).", is_success=True)
+            safe_log(log_func, "Halaman beralih ke daftar konten (berhasil).", is_success=True)
             return True
             
         time.sleep(1)
         
-    if log_func: log_func("Postingan berhasil dikirim ke antrean TikTok.", is_success=True)
+    safe_log(log_func, "Postingan berhasil dikirim ke antrean TikTok.", is_success=True)
     return True
 
 # ==============================================================================
@@ -521,6 +909,7 @@ def run_tt_scheduled_task(
     preview=False,
     pre_caption=None,
     custom_media=None,
+    custom_thumbnail=None,
     dashboard=None,
     task_key=None
 ):
@@ -542,6 +931,7 @@ def run_tt_scheduled_task(
             dashboard.current_job["name"] = item_name
             dashboard.current_job["date"] = schedule_time if schedule_time else "🚀 Posting SEKARANG"
             dashboard.current_job["upload"] = "Membuka TikTok..."
+            dashboard.current_job["thumbnail"] = "Pending" if custom_thumbnail else "Default"
             dashboard.current_job["caption"] = "Pending"
             dashboard.current_job["scheduling"] = "Pending"
             dashboard.render()
@@ -561,11 +951,30 @@ def run_tt_scheduled_task(
         wait_media_processed(driver, log_func=log_handler)
         if dashboard:
             dashboard.current_job["upload"] = "Completed"
-            dashboard.current_job["caption"] = "Mengisi caption..."
             dashboard.render()
-        update_post_status(post_path, "Media terunggah", 50)
+        update_post_status(post_path, "Media terunggah", 45)
+
+        # 4b. Upload Custom Thumbnail (khusus video)
+        is_video_post = any(
+            m.lower().endswith((".mp4", ".mov", ".webm")) for m in media_files
+        )
+        if custom_thumbnail and is_video_post:
+            if dashboard:
+                dashboard.current_job["thumbnail"] = "Mengunggah cover..."
+                dashboard.render()
+            thumb_ok = upload_custom_thumbnail(driver, custom_thumbnail, log_func=log_handler)
+            if dashboard:
+                dashboard.current_job["thumbnail"] = "Completed" if thumb_ok else "Failed"
+                dashboard.render()
+            update_post_status(post_path, "Thumbnail dipasang" if thumb_ok else "Thumbnail dilewati", 55)
+        elif dashboard:
+            dashboard.current_job["thumbnail"] = "Default"
+            dashboard.render()
 
         # 5. Isi Caption
+        if dashboard:
+            dashboard.current_job["caption"] = "Mengisi caption..."
+            dashboard.render()
         fill_caption_and_tags(driver, pre_caption or item_name, log_func=log_handler)
         if dashboard:
             dashboard.current_job["caption"] = "Injected"
@@ -582,7 +991,8 @@ def run_tt_scheduled_task(
             dashboard.render()
 
         # 7. Submit
-        submit_post(driver, is_scheduled=is_scheduled, log_func=log_handler)
+        if not submit_post(driver, is_scheduled=is_scheduled, log_func=log_handler):
+            raise Exception("Tombol Post/Schedule tidak aktif atau gagal diklik.")
         
         # 8. Tunggu Konfirmasi
         wait_completion(driver, log_func=log_handler)

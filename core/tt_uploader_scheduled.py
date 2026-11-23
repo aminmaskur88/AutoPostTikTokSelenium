@@ -182,20 +182,55 @@ def natural_sort_key(s):
     basename = os.path.splitext(os.path.basename(s))[0]
     return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', basename)]
 
+VIDEO_EXTS = (".mp4", ".mov", ".webm")
+IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp")
+
+def get_thumbnail_file(path):
+    """
+    Mendeteksi file custom thumbnail KHUSUS dari metadata JSON (post_meta.json / plan_gemini.json).
+    Jika di metadata JSON tidak ada field 'thumbnail' (atau kosong / file tidak ditemukan),
+    kembalikan None agar tidak memakai custom thumbnail.
+    """
+    path_norm = os.path.normpath(path)
+    meta = get_post_metadata(path_norm)
+    if not meta:
+        return None
+
+    base_dir = os.path.dirname(path_norm) if os.path.isfile(path_norm) else path_norm
+
+    for key in ("thumbnail", "cover", "thumbnail_path", "cover_path"):
+        val = meta.get(key)
+        if val and isinstance(val, str) and val.strip():
+            val_clean = val.strip()
+            candidate = val_clean if os.path.isabs(val_clean) else os.path.join(base_dir, val_clean)
+            if os.path.isfile(candidate) and candidate.lower().endswith(IMAGE_EXTS):
+                return os.path.abspath(candidate)
+
+    return None
+
 def get_media_files(path):
-    valid_ext = (".mp4", ".mov", ".webm", ".jpg", ".png", ".jpeg", ".webp")
+    valid_ext = VIDEO_EXTS + IMAGE_EXTS
     if os.path.isfile(path):
         return [os.path.abspath(path)] if path.lower().endswith(valid_ext) else []
     
-    media = []
+    videos = []
+    images = []
     if os.path.exists(path):
         for f in os.listdir(path):
-            if f.lower().endswith(valid_ext):
-                file_path = os.path.abspath(os.path.join(path, f))
-                media.append(file_path)
+            lower_f = f.lower()
+            file_path = os.path.abspath(os.path.join(path, f))
+            if lower_f.endswith(VIDEO_EXTS):
+                videos.append(file_path)
+            elif lower_f.endswith(IMAGE_EXTS):
+                images.append(file_path)
     
-    media.sort(key=natural_sort_key)
-    return media
+    # Jika folder memiliki video, kembalikan video saja (gambar dianggap thumbnail/cover)
+    if videos:
+        videos.sort(key=natural_sort_key)
+        return videos
+
+    images.sort(key=natural_sort_key)
+    return images
 
 def get_post_metadata(post_path):
     """Membaca file post_meta.json atau plan_gemini.json."""
@@ -361,12 +396,38 @@ class TTPreviewRequestHandler(http.server.BaseHTTPRequestHandler):
                 except Exception:
                     pass
             self.send_error(404)
+        elif self.path.startswith('/thumbnail/'):
+            # /thumbnail/<item_idx>
+            parts = self.path.split('?')[0].split('/')
+            if len(parts) >= 3:
+                try:
+                    item_idx = int(parts[2])
+                    item_key = self.state.pending_items[item_idx]
+                    thumb_path = self.state.item_data_map.get(item_key, {}).get('thumbnail_path')
+                    if thumb_path and os.path.isfile(thumb_path):
+                        self.send_response(200)
+                        ext = os.path.splitext(thumb_path)[1].lower()
+                        mime_map = {
+                            '.png': 'image/png',
+                            '.webp': 'image/webp',
+                            '.jpg': 'image/jpeg',
+                            '.jpeg': 'image/jpeg',
+                        }
+                        self.send_header("Content-type", mime_map.get(ext, 'image/jpeg'))
+                        self.send_header("Cache-Control", "no-store")
+                        self.end_headers()
+                        with open(thumb_path, 'rb') as f:
+                            self.wfile.write(f.read())
+                        return
+                except Exception:
+                    pass
+            self.send_error(404)
         else:
             self.send_error(404)
 
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
-        data = json.loads(self.rfile.read(content_length))
+        data = json.loads(self.rfile.read(content_length)) if content_length > 0 else {}
 
         if self.path == '/shutdown':
             self.send_response(200)
@@ -384,6 +445,52 @@ class TTPreviewRequestHandler(http.server.BaseHTTPRequestHandler):
                 idx = data['index']
                 item_path = self.state.pending_items[idx]
                 self.state.item_data_map[item_path]['schedule_time'] = data.get('schedule_time')
+            self.send_response(200)
+            self.end_headers()
+        elif self.path == '/set_thumbnail':
+            try:
+                idx = int(data['index'])
+                data_url = data.get('data_url', '')
+                orig_name = data.get('filename', 'custom_thumbnail.jpg')
+                if ',' in data_url:
+                    header, b64_data = data_url.split(',', 1)
+                else:
+                    header, b64_data = '', data_url
+
+                ext = os.path.splitext(orig_name)[1].lower()
+                if ext not in IMAGE_EXTS:
+                    if 'png' in header:
+                        ext = '.png'
+                    elif 'webp' in header:
+                        ext = '.webp'
+                    else:
+                        ext = '.jpg'
+
+                img_bytes = base64.b64decode(b64_data)
+                with self.state.lock:
+                    item_path = self.state.pending_items[idx]
+                    if os.path.isdir(item_path):
+                        save_path = os.path.join(item_path, f"custom_thumbnail{ext}")
+                    else:
+                        stem = os.path.splitext(item_path)[0]
+                        save_path = f"{stem}_custom_thumbnail{ext}"
+                    with open(save_path, 'wb') as f:
+                        f.write(img_bytes)
+                    self.state.item_data_map[item_path]['thumbnail_path'] = os.path.abspath(save_path)
+                self.send_response(200)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"ok": True, "path": save_path}).encode('utf-8'))
+            except Exception as e:
+                self.send_response(400)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"ok": False, "error": str(e)}).encode('utf-8'))
+        elif self.path == '/remove_thumbnail':
+            with self.state.lock:
+                idx = int(data['index'])
+                item_path = self.state.pending_items[idx]
+                self.state.item_data_map[item_path]['thumbnail_path'] = None
             self.send_response(200)
             self.end_headers()
         elif self.path == '/delete_item':
@@ -407,19 +514,41 @@ class TTPreviewRequestHandler(http.server.BaseHTTPRequestHandler):
             data = self.state.item_data_map[path]
             name = os.path.basename(path)
             media_files = data.get('media_files', [])
+            thumb_path = data.get('thumbnail_path')
             sched = data.get('schedule_time') or '🚀 Posting SEKARANG'
+            thumb_meta_badge = f" | 🖼️ Cover: {html.escape(os.path.basename(thumb_path))}" if thumb_path else ""
             
             # Media thumbnail
             media_preview = ""
             if media_files:
                 first_media = media_files[0]
-                is_video = first_media.lower().endswith(('.mp4', '.mov', '.webm'))
+                is_video = first_media.lower().endswith(VIDEO_EXTS)
                 media_url = f"/media/{i}/0"
                 if is_video:
+                    thumb_controls = ""
+                    if thumb_path and os.path.isfile(thumb_path):
+                        thumb_controls = f'''
+                        <div class="thumb-section">
+                            <div class="thumb-preview-wrap">
+                                <img src="/thumbnail/{i}?t={int(time.time())}" class="thumb-img" alt="Custom Thumbnail">
+                                <div class="thumb-badge">🖼️ Custom Cover</div>
+                            </div>
+                            <div class="thumb-actions">
+                                <label class="btn-thumb">
+                                    Ganti Cover
+                                    <input type="file" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="uploadThumbnail({i}, this)">
+                                </label>
+                                <button type="button" class="btn-thumb-remove" onclick="removeThumbnail({i})">Hapus</button>
+                            </div>
+                        </div>'''
+
                     media_preview = f'''
-                    <div class="video-preview-box">
-                        <video src="{media_url}" preload="metadata" style="max-height:160px; max-width:200px; border-radius:6px; background:#000;"></video>
-                        <div class="video-badge">▶ Video ({len(media_files)})</div>
+                    <div class="media-col">
+                        <div class="video-preview-box">
+                            <video src="{media_url}" preload="metadata" style="max-height:160px; max-width:200px; border-radius:6px; background:#000;"></video>
+                            <div class="video-badge">▶ Video ({len(media_files)})</div>
+                        </div>
+                        {thumb_controls}
                     </div>'''
                 else:
                     media_preview = f'''
@@ -434,7 +563,7 @@ class TTPreviewRequestHandler(http.server.BaseHTTPRequestHandler):
                     <div class="handle">☰</div>
                     <div class="item-info">
                         <div class="item-title">{html.escape(name)}</div>
-                        <div class="item-meta">🕒 {html.escape(sched)} | 📁 {len(media_files)} Media</div>
+                        <div class="item-meta">🕒 {html.escape(sched)} | 📁 {len(media_files)} Media{thumb_meta_badge}</div>
                     </div>
                     <button class="btn-delete" onclick="deleteItem({i})">×</button>
                 </div>
@@ -472,6 +601,17 @@ class TTPreviewRequestHandler(http.server.BaseHTTPRequestHandler):
                 textarea:focus {{ border-color: #fe2c55; }}
                 .video-preview-box, .image-preview-box {{ position: relative; }}
                 .video-badge, .image-badge {{ position: absolute; bottom: 6px; left: 6px; background: rgba(0,0,0,0.7); color: #fff; font-size: 10px; padding: 3px 6px; border-radius: 4px; }}
+                .media-col {{ display: flex; flex-direction: column; gap: 8px; align-items: center; max-width: 200px; }}
+                .thumb-section {{ width: 100%; display: flex; flex-direction: column; gap: 6px; align-items: center; }}
+                .thumb-preview-wrap {{ position: relative; width: 100%; display: flex; justify-content: center; }}
+                .thumb-img {{ max-height: 110px; max-width: 180px; border-radius: 6px; border: 1px solid #fe2c55; object-fit: cover; }}
+                .thumb-badge {{ position: absolute; bottom: 4px; left: 6px; background: rgba(254,44,85,0.85); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 4px; }}
+                .thumb-actions {{ display: flex; gap: 6px; width: 100%; justify-content: center; }}
+                .btn-thumb {{ background: #2b2b2b; color: #f1f1f1; border: 1px solid #444; padding: 5px 10px; border-radius: 5px; font-size: 11px; cursor: pointer; text-align: center; transition: 0.2s; }}
+                .btn-thumb:hover {{ border-color: #fe2c55; color: #fff; }}
+                .btn-thumb-add {{ width: 100%; box-sizing: border-box; }}
+                .btn-thumb-remove {{ background: transparent; color: #ff6b81; border: 1px solid #553; padding: 5px 8px; border-radius: 5px; font-size: 11px; cursor: pointer; }}
+                .btn-thumb-remove:hover {{ background: #3a1a22; }}
                 .footer-actions {{ position: fixed; bottom: 0; left: 0; right: 0; background: #1a1a1a; padding: 14px; border-top: 1px solid #333; display: flex; justify-content: center; z-index: 1000; }}
                 .btn-start {{ background: #fe2c55; color: white; border: none; padding: 12px 40px; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; transition: 0.2s; }}
                 .btn-start:hover {{ background: #e02449; }}
@@ -512,6 +652,32 @@ class TTPreviewRequestHandler(http.server.BaseHTTPRequestHandler):
 
                 function editCaption(index, caption) {{
                     postAction('/edit_caption', {{ index, caption }});
+                }}
+
+                function uploadThumbnail(index, inputEl) {{
+                    const file = inputEl.files && inputEl.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = function(e) {{
+                        postAction('/set_thumbnail', {{
+                            index: index,
+                            filename: file.name,
+                            data_url: e.target.result
+                        }}).then(r => r.json()).then(res => {{
+                            if (res.ok) {{
+                                location.reload();
+                            }} else {{
+                                alert('Gagal menyimpan thumbnail: ' + (res.error || 'Unknown error'));
+                            }}
+                        }});
+                    }};
+                    reader.readAsDataURL(file);
+                }}
+
+                function removeThumbnail(index) {{
+                    if (confirm('Hapus custom thumbnail untuk video ini?')) {{
+                        postAction('/remove_thumbnail', {{ index }}).then(() => location.reload());
+                    }}
                 }}
 
                 function deleteItem(index) {{
@@ -595,6 +761,7 @@ class UploadDashboard:
             "name": "",
             "date": "",
             "upload": "Pending",
+            "thumbnail": "Default",
             "caption": "Pending",
             "scheduling": "Pending",
             "activity": "Pending"
@@ -627,14 +794,15 @@ class UploadDashboard:
         def format_status(val):
             if val in ["Completed", "Injected"]:
                 return f"{CLR_GREEN}✓ Selesai{CLR_RESET}"
-            elif val == "Pending":
-                return f"{CLR_DIM}Pending{CLR_RESET}"
+            elif val in ["Pending", "Default"]:
+                return f"{CLR_DIM}{val}{CLR_RESET}"
             elif val == "Failed":
                 return f"{CLR_RED}✗ Gagal{CLR_RESET}"
             else:
                 return f"{CLR_BLUE}⟳ {val}{CLR_RESET}"
 
         print(f"  📤 Upload       {format_status(job['upload'])}")
+        print(f"  🖼️  Thumbnail   {format_status(job.get('thumbnail', 'Default'))}")
         print(f"  📝 Caption      {format_status(job['caption'])}")
         print(f"  🗓️  Scheduling  {format_status(job['scheduling'])}\n")
         
@@ -688,6 +856,111 @@ def save_drafts(drafts):
     path = os.path.join(BASE_DIR, "draft_posts_tt.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(drafts, f, indent=4)
+
+def parse_selection_indices(selection_str, total_count):
+    """
+    Memparsing input pilihan nomor/rentang dari pengguna (contoh: '1, 3, 5-8').
+    Mengembalikan list indeks 0-based unik sesuai urutan input.
+    """
+    selected = []
+    seen = set()
+    for token in re.split(r'[\s,;]+', selection_str.strip()):
+        if not token:
+            continue
+        if '-' in token:
+            parts = token.split('-', 1)
+            if parts[0].isdigit() and parts[1].isdigit():
+                start_i, end_i = int(parts[0]), int(parts[1])
+                step = 1 if start_i <= end_i else -1
+                for num in range(start_i, end_i + step, step):
+                    if 1 <= num <= total_count and (num - 1) not in seen:
+                        selected.append(num - 1)
+                        seen.add(num - 1)
+        elif token.isdigit():
+            num = int(token)
+            if 1 <= num <= total_count and (num - 1) not in seen:
+                selected.append(num - 1)
+                seen.add(num - 1)
+    return selected
+
+def select_pending_items(pending_items, args=None):
+    """
+    Memungkinkan pengguna memilih semua, mengacak, mengambil N item acak,
+    mengambil N item pertama, atau memilih manual item tertentu.
+    """
+    if len(pending_items) <= 1:
+        return pending_items
+
+    # Mode non-interaktif via CLI args (--random / --limit)
+    if args and (getattr(args, "random", False) or getattr(args, "limit", 0) > 0):
+        items = list(pending_items)
+        if getattr(args, "random", False):
+            random.shuffle(items)
+        limit_val = getattr(args, "limit", 0)
+        if limit_val and limit_val > 0:
+            items = items[:limit_val]
+        return items
+
+    total = len(pending_items)
+    select_options = [
+        f"1. Upload Semua ({total} item, urut)",
+        f"2. Acak Semua ({total} item, urutan random)",
+        "3. Pilih Random Beberapa Item (acak N item)",
+        "4. Ambil N Item Pertama (urut)",
+        "5. Pilih Manual (pilih nomor / rentang tertentu)",
+        "0. Batal / Kembali"
+    ]
+    sel_mode = select_menu_option(f"PILIH KONTEN YANG AKAN DIUPLOAD ({total} TERSEDIA)", select_options)
+
+    if sel_mode == 0:
+        return pending_items
+    elif sel_mode == 1:
+        shuffled = list(pending_items)
+        random.shuffle(shuffled)
+        print(f"\n{TAG_SUCCESS} Urutan {len(shuffled)} item berhasil diacak.")
+        return shuffled
+    elif sel_mode == 2:
+        while True:
+            raw = input(f"\n{TAG_INPUT} Berapa jumlah item acak yang ingin diupload? (1-{total}): ").strip()
+            if raw.isdigit() and 1 <= int(raw) <= total:
+                n = int(raw)
+                picked = random.sample(pending_items, n)
+                print(f"\n{TAG_SUCCESS} Dipilih {n} item secara acak:")
+                for idx, p in enumerate(picked, 1):
+                    thumb_tag = f" {CLR_MAGENTA}[🖼️ Cover]{CLR_RESET}" if get_thumbnail_file(p) else ""
+                    print(f"   {idx}. {os.path.basename(p)}{thumb_tag}")
+                return picked
+            print(f"   {TAG_ERROR} Masukkan angka antara 1 sampai {total}.")
+    elif sel_mode == 3:
+        while True:
+            raw = input(f"\n{TAG_INPUT} Berapa jumlah item pertama yang ingin diupload? (1-{total}): ").strip()
+            if raw.isdigit() and 1 <= int(raw) <= total:
+                n = int(raw)
+                picked = pending_items[:n]
+                print(f"\n{TAG_SUCCESS} Dipilih {n} item pertama.")
+                return picked
+            print(f"   {TAG_ERROR} Masukkan angka antara 1 sampai {total}.")
+    elif sel_mode == 4:
+        print(f"\n{CLR_BOLD}Daftar Konten Tersedia ({total} item):{CLR_RESET}")
+        for idx, p in enumerate(pending_items, 1):
+            thumb_tag = f" {CLR_MAGENTA}[🖼️ Cover]{CLR_RESET}" if get_thumbnail_file(p) else ""
+            print(f"  {CLR_CYAN}{idx:>3}.{CLR_RESET} {os.path.basename(p)}{thumb_tag}")
+        while True:
+            raw = input(f"\n{TAG_INPUT} Masukkan nomor/rentang (contoh: 1,3,5-8 | ketik 'all' = semua | '0' = batal): ").strip().lower()
+            if raw in ('0', 'batal', 'cancel'):
+                return []
+            if raw == 'all':
+                return pending_items
+            indices = parse_selection_indices(raw, total)
+            if indices:
+                picked = [pending_items[i] for i in indices]
+                print(f"\n{TAG_SUCCESS} Dipilih {len(picked)} item:")
+                for idx, p in enumerate(picked, 1):
+                    print(f"   {idx}. {os.path.basename(p)}")
+                return picked
+            print(f"   {TAG_ERROR} Format pilihan tidak valid. Contoh yang benar: 1, 3, 5-8")
+    else:
+        return []
 
 # --- WORKFLOW UTAMA POSTING TIKTOK ---
 
@@ -766,6 +1039,12 @@ def run_tiktok_post_workflow(args=None):
 
     print(f"\n{TAG_SUCCESS} Ditemukan {CLR_BOLD}{CLR_GREEN}{len(pending_items)}{CLR_RESET} item konten baru yang siap diunggah.")
 
+    # Pilihan Seleksi / Pengacakan Konten (semua, acak semua, random N, N pertama, atau pilih manual)
+    pending_items = select_pending_items(pending_items, args=args)
+    if not pending_items:
+        print(f"\n{TAG_WARNING} Tidak ada item yang dipilih. Proses dibatalkan.")
+        return
+
     # Pilihan Strategi Penjadwalan
     sched_options = [
         "1. Jadwalkan dengan Interval Jam (Otomatis)",
@@ -801,10 +1080,14 @@ def run_tiktok_post_workflow(args=None):
 
     preview_options = [
         "1. Tanpa Pratinjau (Langsung Eksekusi)",
-        "2. Pratinjau Web Interaktif (Edit Caption / Urutan)",
+        "2. Pratinjau Web Interaktif (Edit Caption / Thumbnail / Urutan)",
     ]
     preview_idx = select_menu_option("PILIHAN PRATINJAU", preview_options)
     is_web_preview = (preview_idx == 1)
+
+    # Opsional: Override thumbnail hanya jika argumen CLI --thumbnail diberikan secara eksplisit
+    cli_default_thumb = getattr(args, "thumbnail", None) if args else None
+    default_thumb_path = os.path.abspath(cli_default_thumb) if (cli_default_thumb and os.path.isfile(cli_default_thumb)) else None
 
     # Proteksi Batas Jadwal TikTok: Maksimal 10 Hari
     max_allowed_tt = datetime.now() + timedelta(days=10)
@@ -813,6 +1096,7 @@ def run_tiktok_post_workflow(args=None):
 
     valid_pending_items = []
     overflow_pending_items = []
+    auto_thumb_count = 0
 
     for item in pending_items:
         sched_str = None
@@ -827,12 +1111,20 @@ def run_tiktok_post_workflow(args=None):
             sched_str = temp_time.strftime("%Y-%m-%d %H:%M")
             temp_time += timedelta(minutes=interval_mins)
 
+        detected_thumb = get_thumbnail_file(item) or default_thumb_path
+        if detected_thumb:
+            auto_thumb_count += 1
+
         item_data_map[item] = {
             'caption': get_caption_text(item),
             'media_files': get_media_files(item),
+            'thumbnail_path': detected_thumb,
             'schedule_time': sched_str
         }
         valid_pending_items.append(item)
+
+    if auto_thumb_count > 0:
+        print(f"{TAG_INFO} Custom thumbnail terdeteksi untuk {CLR_BOLD}{auto_thumb_count}/{len(valid_pending_items)}{CLR_RESET} item.")
 
     if overflow_pending_items:
         print(f"\n{TAG_WARNING} {len(overflow_pending_items)} item melebihi batas maksimal penjadwalan TikTok (10 hari).")
@@ -868,6 +1160,7 @@ def run_tiktok_post_workflow(args=None):
             sched_str = data.get('schedule_time')
             caption = data.get('caption')
             media_files = data.get('media_files', [])
+            thumbnail_path = data.get('thumbnail_path')
             
             if choice == '3':
                 res = get_datetime_input(f"Jadwal untuk {os.path.basename(item)}")
@@ -880,6 +1173,7 @@ def run_tiktok_post_workflow(args=None):
                 schedule_time=sched_str,
                 pre_caption=caption,
                 custom_media=media_files,
+                custom_thumbnail=thumbnail_path,
                 dashboard=dashboard
             )
             
@@ -932,11 +1226,13 @@ if __name__ == "__main__":
     parser.add_argument("--profile", help="Nama profil TikTok di tt_profiles/")
     parser.add_argument("--path", help="Path folder konten")
     parser.add_argument("--limit", type=int, default=0, help="Jumlah video yang diupload")
+    parser.add_argument("--random", action="store_true", help="Acak urutan / pilih video secara random")
     parser.add_argument("--mode", type=int, choices=[1, 2], help="1: Jadwalkan, 2: Post Now")
     parser.add_argument("--interval", type=int, default=0, help="Jeda antar jadwal (menit)")
     parser.add_argument("--start", help="Waktu mulai (YYYY-MM-DD HH:MM)")
     parser.add_argument("--headless", action="store_true", help="Gunakan mode headless")
     parser.add_argument("--web-preview", action="store_true", help="Tampilkan web preview interaktif")
+    parser.add_argument("--thumbnail", help="Path file custom thumbnail default (.jpg/.png/.webp)")
     args = parser.parse_args()
 
     if not any([args.profile, args.path]):
